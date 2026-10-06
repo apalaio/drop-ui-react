@@ -1,0 +1,15 @@
+/*
+ * Automatic source detection is off: it scans the whole repository, and every word in the docs and
+ * tests that happens to name a daisyUI component (tabs, steps, table, ...) ships that component.
+ */
+@import 'tailwindcss' source(none);
+@source './**/*.{ts,tsx}';
+@source not './**/*.{spec,test}.{ts,tsx}';
+@source not './test';
+/*
+ * No theme is built into this file. `index.html` links the CSS of the theme the app starts in, and
+ * the theme store fetches the rest on demand; both are daisyUI's prebuilt files, copied as assets.
+ */
+@plugin "daisyui" {
+  themes: false;
+}

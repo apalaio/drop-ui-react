@@ -1,0 +1,45 @@
+{
+  "name": "drop-ui-react",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "npm@11.17.0",
+  "scripts": {
+    "dev": "vite --port 5173 --strictPort",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "test": "vitest --project unit",
+    "test:components": "vitest --project components",
+    "e2e": "playwright test"
+  },
+  "dependencies": {
+    "@base-ui/react": "^1.8.0",
+    "@dnd-kit/core": "^6.3.1",
+    "@dnd-kit/sortable": "^10.0.0",
+    "@dnd-kit/utilities": "^3.2.2",
+    "@tailwindcss/vite": "4.3.3",
+    "daisyui": "5.7.42",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwindcss": "4.3.3",
+    "zustand": "^5.0.15"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@testing-library/dom": "10.4.2",
+    "@testing-library/jest-dom": "7.0.1",
+    "@testing-library/react": "^16.3.3",
+    "@testing-library/user-event": "^14.6.7",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "@vitest/browser-playwright": "4.1.11",
+    "jsdom": "28.1.0",
+    "prettier": "^3.9.8",
+    "typescript": "6.0.3",
+    "vite": "^8.3.3",
+    "vite-plugin-static-copy": "^4.1.1",
+    "vitest": "4.1.11"
+  }
+}

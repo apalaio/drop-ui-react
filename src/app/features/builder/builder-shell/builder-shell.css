@@ -1,0 +1,46 @@
+/*
+ * Shell grid: named areas so each region is placed by name, not by track index.
+ *
+ *   md and up              below md
+ *   +--------+---------+   +---------+
+ *   | header | header  |   | header  |
+ *   +--------+---------+   +---------+
+ *   | side-  |  main   |   | sidebar |
+ *   | bar    |         |   +---------+
+ *   |        |         |   |  main   |
+ *   +--------+---------+   +---------+
+ */
+.builder-shell {
+  --shell-sidebar-width: 16rem;
+
+  display: grid;
+  height: 100dvh;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto auto minmax(0, 1fr);
+  grid-template-areas:
+    'header'
+    'sidebar'
+    'main';
+}
+
+@media (min-width: 48rem) {
+  .builder-shell {
+    grid-template-columns: var(--shell-sidebar-width) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    grid-template-areas:
+      'header header'
+      'sidebar main';
+  }
+}
+
+.shell-header {
+  grid-area: header;
+}
+
+.shell-sidebar {
+  grid-area: sidebar;
+}
+
+.shell-main {
+  grid-area: main;
+}
