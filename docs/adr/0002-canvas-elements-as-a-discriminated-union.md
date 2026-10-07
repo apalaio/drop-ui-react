@@ -4,11 +4,9 @@
 - **Date:** 2026-10-05
 - **Scope:** [`canvas-element.ts`](../../src/app/features/builder/models/canvas-element.ts) and everything that reads or creates a canvas element
 
-This decision was made in the Angular `drop-ui` repository and is carried over unchanged: the model files are the same in both. Only what concerns rendering (rules 7 and 8) is written for TSX here.
-
 ## Context
 
-A canvas element is one instance the user has dropped on the canvas. In the Angular app, until this decision, every element had the same shape whatever its type:
+A canvas element is one instance the user has dropped on the canvas. Until this decision, every element had the same shape whatever its type:
 
 ```ts
 export interface CanvasElement {

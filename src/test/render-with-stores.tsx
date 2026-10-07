@@ -8,7 +8,6 @@ import {
   createBuilderStore,
 } from '../app/features/builder/state/builder-store';
 import {
-  ALL_THEMES_STYLESHEET,
   createThemeStore,
   ThemeStore,
   ThemeStoreContext,
@@ -29,10 +28,6 @@ export type RenderWithStoresResult = RenderResult & {
   themeStore: ThemeStore;
 };
 
-/*
- * The pointer sensor alone, as in BuilderShell. dnd-kit's default set adds a keyboard sensor, which
- * starts a drag on Enter or Space and so swallows the key that opens a menu.
- */
 function DragContext({ children }: { children: ReactNode }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 5 } }));
   return <DndContext sensors={sensors}>{children}</DndContext>;
@@ -47,9 +42,8 @@ export function renderWithStores(
     dnd = true,
   }: RenderWithStoresOptions = {},
 ): RenderWithStoresResult {
-  document.documentElement.setAttribute('data-theme', theme);
   const builderStore = createBuilderStore({ announce, initial });
-  const themeStore = createThemeStore({ announce });
+  const themeStore = createThemeStore({ announce, declaredTheme: theme });
 
   function Providers({ children }: { children: ReactNode }) {
     return (
@@ -66,8 +60,5 @@ export function renderWithStores(
 
 afterEach(() => {
   document.documentElement.removeAttribute('data-theme');
-  document.head
-    .querySelectorAll(`link[href="${ALL_THEMES_STYLESHEET}"]`)
-    .forEach((link) => link.remove());
   document.body.querySelectorAll(':scope > [aria-live]').forEach((region) => region.remove());
 });

@@ -1,7 +1,7 @@
 import { fireEvent, screen, waitFor } from '@testing-library/react';
 import { userEvent } from 'vitest/browser';
 import { renderWithStores } from '../../../../test/render-with-stores';
-import { ALL_THEMES_STYLESHEET, THEMES } from '../state/theme-store';
+import { THEMES, ThemeStore } from '../state/theme-store';
 import { ThemePicker } from './theme-picker';
 
 describe(ThemePicker.name, () => {
@@ -9,16 +9,14 @@ describe(ThemePicker.name, () => {
   const startingTheme = 'fantasy';
   const otherTheme = 'dracula';
 
+  let themeStore: ThemeStore;
+
   function openList(): void {
     fireEvent.click(screen.getByRole('button', { name: triggerLabel }));
   }
 
-  function allThemesStylesheet(): Element | null {
-    return document.head.querySelector(`link[rel="stylesheet"][href="${ALL_THEMES_STYLESHEET}"]`);
-  }
-
   beforeEach(() => {
-    renderWithStores(<ThemePicker />, { theme: startingTheme });
+    ({ themeStore } = renderWithStores(<ThemePicker />, { theme: startingTheme }));
   });
 
   describe('before the button is clicked', () => {
@@ -30,8 +28,8 @@ describe(ThemePicker.name, () => {
       expect(screen.queryAllByRole('menuitemradio').length).toBe(0);
     });
 
-    it('should not load the other themes', () => {
-      expect(allThemesStylesheet()).not.toBeInTheDocument();
+    it('should not request the other themes', () => {
+      expect(themeStore.getState().allThemesRequested).toBe(false);
     });
 
     it('should describe the button with the current theme', () => {
@@ -55,8 +53,8 @@ describe(ThemePicker.name, () => {
       expect(await screen.findByRole('menu', { name: 'Themes' })).toBeInTheDocument();
     });
 
-    it('should load every theme', async () => {
-      await waitFor(() => expect(allThemesStylesheet()).toBeInTheDocument());
+    it('should request every theme', async () => {
+      await waitFor(() => expect(themeStore.getState().allThemesRequested).toBe(true));
     });
 
     it('should list every daisyUI theme', async () => {
@@ -113,7 +111,9 @@ describe(ThemePicker.name, () => {
       await userEvent.keyboard('{Escape}');
 
       await waitFor(() => expect(screen.queryByRole('menu')).not.toBeInTheDocument());
-      expect(document.documentElement).toHaveAttribute('data-theme', startingTheme);
+      expect(screen.getByRole('button', { name: triggerLabel })).toHaveAccessibleDescription(
+        `Current theme: ${startingTheme}`,
+      );
     });
   });
 
@@ -121,12 +121,6 @@ describe(ThemePicker.name, () => {
     beforeEach(async () => {
       openList();
       fireEvent.click(await screen.findByRole('menuitemradio', { name: otherTheme }));
-    });
-
-    it('should apply the theme to the whole document', async () => {
-      await waitFor(() =>
-        expect(document.documentElement).toHaveAttribute('data-theme', otherTheme),
-      );
     });
 
     it('should close the theme list', async () => {

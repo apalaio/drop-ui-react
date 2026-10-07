@@ -20,7 +20,10 @@ import './styles.css';
 
 const announce = createAnnouncer();
 const builderStore = createBuilderStore({ announce });
-const themeStore = createThemeStore({ announce });
+const themeStore = createThemeStore({
+  announce,
+  declaredTheme: document.documentElement.getAttribute('data-theme'),
+});
 
 const root = createRoot(document.getElementById('root')!);
 

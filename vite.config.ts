@@ -9,7 +9,7 @@ export default defineConfig({
     tailwindcss(),
     /*
      * daisyUI's prebuilt themes, served in dev and copied by the build. `index.html` links the
-     * starting theme from `themes/`; ThemeStore fetches `themes.css`, which holds all of them.
+     * starting theme from `themes/`; DocumentTheme links `themes.css`, which holds all of them.
      */
     viteStaticCopy({
       targets: [

@@ -1,7 +1,7 @@
 # Testing
 
 > **Purpose:** When to write a `*.spec.ts`, a `*.test.tsx`, or a Playwright `*.e2e.ts`, and how to write each.
-> **Last updated:** 2026-10-06
+> **Last updated:** 2026-10-07
 
 ---
 
@@ -20,7 +20,7 @@ Wiring:
 - [`vitest.config.ts`](../../vitest.config.ts) declares the projects `unit` (`src/**/*.spec.ts`) and `components` (`src/**/*.test.tsx`). It is standalone and does not read `vite.config.ts`. Type-checking of every test file goes through `tsconfig.test.json`, so `npm run build` fails on a type error in a test.
 - Both projects load [`src/test/setup.ts`](../../src/test/setup.ts), which registers the `@testing-library/jest-dom` matchers (`toBeInTheDocument`, `toHaveAttribute`, …). The components project first loads [`src/test/setup.browser.ts`](../../src/test/setup.browser.ts), which shims the `process` global those matchers expect, sets Base UI's `BASE_UI_ANIMATIONS_DISABLED` switch the way `src/main.tsx` does (so a closed menu or dialog leaves the page at once, as in the app), and switches off React's `act()` environment flag (see [Firing events](#firing-events)).
 - [`src/test/render-with-stores.tsx`](../../src/test/render-with-stores.tsx) is the mount helper for every component that reads a store.
-- [`playwright.config.ts`](../../playwright.config.ts) starts `npm run dev` on `http://localhost:5173`. Port 5173, not 4200, so it can never attach to a running Angular dev server of the sibling repo.
+- [`playwright.config.ts`](../../playwright.config.ts) starts `npm run dev` on `http://localhost:5173`.
 
 ### A new dependency goes on the pre-bundle list
 
@@ -47,7 +47,7 @@ When in doubt: if you would assert on a DOM node or a user interaction in one co
 
 **A store, the announcer or a pure function never gets a `*.test.tsx`.** There is nothing to render, so the browser runner has nothing to assert. Unit-test its logic in a `*.spec.ts`; its effects in a real browser are proved by the `*.test.tsx` of the **component that consumes it**.
 
-**A React component has no class to instantiate**, so there is no "class logic" spec as in the Angular repo. What was a handler spec there is one of three things here: a spec of the pure function the handler delegates to (`Canvas`'s drop → `resolveDrop`), a component test asserting a callback prop, or a component test reading the store.
+**A component has no class to instantiate**, so a spec cannot call one of its handlers. A handler is covered by one of three things: a spec of the pure function it delegates to (`BuilderShell`'s drop → `resolveDrop`), a component test asserting a callback prop, or a component test reading the store.
 
 ### When a component needs both
 
@@ -64,7 +64,7 @@ Component tests (`*.test.tsx`) are the deliberately cheap layer, fast to write a
 E2E conventions:
 
 - Tests live in `e2e/` at the repo root and are named `*.e2e.ts`, never `*.spec.ts` or `*.test.tsx`, which are reserved for Vitest.
-- The six files are **shared with the Angular repo**: they are the contract that both apps behave the same. Change an assertion only together with the same change in `drop-ui/e2e/`.
+- The six files are a **contract kept identical in a second repository**. Before changing an assertion, read [What does not differ](../../docs/angular-react-divergence.md#what-does-not-differ): it changes in both places or not at all.
 - Playwright starts `npm run dev` on `http://localhost:5173` automatically (or reuses one already running).
 - Prefer role/text locators (`page.getByRole`, `page.getByText`, `page.getByTestId`) over CSS selectors.
 
@@ -106,9 +106,9 @@ describe('BuilderStore', () => {
 | One store per test        | Call the factory inside the test or in `beforeEach`. A store shared between tests leaks state from one to the next                                                                                           |
 | Reading state             | `store.getState().grid`. `getState()` returns a new object after every action, so read it again after acting; never hold on to an earlier result                                                           |
 | Derived data              | Call the exported selector on the state: `selectCells(grid, canvasElements)`. Hooks (`useCells`) do not run outside a component                                                                              |
-| Preset state              | `createBuilderStore({ announce, initial: { grid, canvasElements } })`                                                                                                                                        |
+| Preset state              | `createBuilderStore({ announce, initial: { grid, canvasElements } })`, `createThemeStore({ announce, declaredTheme: 'fantasy' })`                                                                            |
 | The announcer             | Pass `vi.fn<Announce>()` as `announce` and assert on it. It is the store's one injected dependency, so asserting on it is asserting on the store's output                                                   |
-| The document              | `createThemeStore` and `createAnnouncer` take a `Document`. Give them a detached one, `document.implementation.createHTMLDocument()`, so nothing has to be cleaned up and nothing leaks into the next test |
+| The document              | A store never touches it (ADR 0001 rule 11), so a store spec has none. `createAnnouncer` takes a `Document`: give it a detached one, `document.implementation.createHTMLDocument()`, so nothing has to be cleaned up |
 | Spies                     | `vi.fn()` for an injected function. Never `vi.spyOn` a store's own action                                                                                                                                    |
 | Class mappings            | Assert on the exported mapping (`OUTLINE.div`), and render with `createElement` (a `.ts` file has no JSX) only to prove the component applies it; this is the one place `classList` is read                |
 | What jsdom lacks          | `matchMedia` (stub it with `vi.stubGlobal` when a rendered component calls it), layout, real focus order. Anything that needs those is a `*.test.tsx`                                                        |
@@ -181,10 +181,12 @@ describe(Canvas.name, () => {
 | ---------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `initial`  | `Partial<BuilderState>` | Preset `grid`, `canvasElements`, `paletteItems`. What is left out keeps its default                                                                 |
 | `announce` | `Announce`              | Defaults to a real `createAnnouncer()`, so the live region is in the DOM and `screen.findByText('Theme changed to dracula.')` can read it           |
-| `theme`    | `string`                | The theme `<html>` declares before the theme store is created, as `index.html` does. Defaults to `fantasy`                                          |
+| `theme`    | `string`                | The theme the theme store is told the page declares, as `main.tsx` tells it `index.html`'s. Defaults to `fantasy`                                   |
 | `dnd`      | `boolean`               | Wraps in a `DndContext` with the pointer sensor only, like the shell's. Defaults to `true`; pass `false` for `BuilderShell` and `App`, which bring their own |
 
-After each test the helper removes `data-theme` from `<html>`, the `themes.css` link and the announcer's live regions. Testing Library unmounts the tree by itself.
+After each test the helper removes `data-theme` from `<html>` and the announcer's live regions. Testing Library unmounts the tree by itself, and the `themes.css` link goes with it.
+
+**The helper does not theme the page.** `<html data-theme>` and the `themes.css` link are the work of `DocumentTheme`, which `App` renders. A test of any other component asserts the theme where that component shows it (`ThemePicker`'s button description) or in `themeStore.getState()`; that the document follows is covered in [`document-theme.test.tsx`](../../src/app/features/theme/document-theme/document-theme.test.tsx).
 
 **A controlled component needs a host.** The dialogs take `open` and `onOpenChange` and render nothing while closed. To test opening, closing and where focus returns, write a small host component in the test file that holds the `open` state and renders an `Open` button and an `<output>` for the result; see [`confirmation-dialog.test.tsx`](../../src/app/shared/confirmation-dialog/confirmation-dialog.test.tsx). The same goes for a component that takes its data as props but changes it through a store: `dropped-element.test.tsx` has a host that reads the element back from the store, the way `Canvas` does.
 
@@ -225,7 +227,7 @@ Always query through `screen`, not through the `container` that `render` returns
 | Spy assertions on a store action, a hook or a module function (`vi.spyOn(...)`, `vi.mock(...)`)                                                | A `*.test.tsx` asserts the **outcome**, never that a call happened. See [Never spy in a component test](#never-spy-in-a-component-test).                                                                                                                                                                                                                                                                                                              |
 | `getBy*` for absence checks                                                                                                                    | `getBy*` throws before the assertion runs; use `queryBy*` instead                                                                                                                                                                                                                                                                                                                                                                                     |
 
-There is no class-selector exception. Everything Base UI and dnd-kit put on the page that a test needs has a role (`menu`, `menuitem`, `menuitemradio`, `dialog`, `alertdialog`), and what has none (a dialog backdrop, a menu positioner) is not ours to assert on. A DOM property is fine where it is the honest way to reach something: `element.parentElement` for the wrapper of a dropped element, `input.form` for the form of a field.
+There is no class-selector exception. Everything Base UI and dnd-kit put on the page that a test needs has a role (`menu`, `menuitem`, `menuitemradio`, `dialog`, `alertdialog`), and what has none (a dialog backdrop, a menu positioner) is not ours to assert on. A DOM property is fine where it is the honest way to reach something: `element.parentElement` for the wrapper of a dropped element, `input.form` for the form of a field. The same goes for an attribute selector on an element that has no role and no text, when those attributes are what the test is about: `document-theme.test.tsx` finds the stylesheet `<link>` by its `rel` and `href`, which a `data-testid` would hide.
 
 **A disabled menu item is `aria-disabled`, not `disabled`.** Base UI keeps a disabled `Menu.Item` focusable and marks it `aria-disabled="true"`; an enabled one has no such attribute. jest-dom's `toBeDisabled()` only knows the native `disabled` attribute, so assert `toHaveAttribute('aria-disabled', 'true')` and `not.toHaveAttribute('aria-disabled')`. (Playwright's `toBeDisabled()` does read `aria-disabled`, which is why the E2E files can use it.)
 
@@ -406,4 +408,4 @@ When in doubt about whether a change is "mechanical", it isn't.
 
 ## Bug fixes
 
-Every bug fix requires a **regression test**. If the bug was in rendering or in a component's behaviour, the regression test belongs in `*.test.tsx`. If it was in a store or a pure function, it belongs in `*.spec.ts`. If it only shows up across components (a drop landing at the wrong index), it belongs in `*.e2e.ts`, and then in the Angular repo's copy of that file as well.
+Every bug fix requires a **regression test**. If the bug was in rendering or in a component's behaviour, the regression test belongs in `*.test.tsx`. If it was in a store or a pure function, it belongs in `*.spec.ts`. If it only shows up across components (a drop landing at the wrong index), it belongs in `*.e2e.ts`, under the rule for those files in [E2E is for flows, not coverage](#e2e-is-for-flows-not-coverage).

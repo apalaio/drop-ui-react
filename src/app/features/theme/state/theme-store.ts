@@ -19,67 +19,34 @@ export type ThemeStore = StoreApi<ThemeState & ThemeActions>;
 
 export const THEMES: readonly string[] = themeOrder;
 
-/** daisyUI's prebuilt stylesheet of every theme, copied to the app root by the build. */
-export const ALL_THEMES_STYLESHEET = 'themes.css';
-
 /**
- * `index.html` names the starting theme on `<html>` and links that theme's CSS, so the name is read
+ * `index.html` names the starting theme on `<html>` and links that theme's CSS, so the name is taken
  * from there rather than repeated. Any other start has no CSS on the page and needs the full set.
  */
-const createInitialState = (root: HTMLElement): ThemeState => {
-  const declared = root.getAttribute('data-theme');
-  return declared !== null && THEMES.includes(declared)
-    ? { theme: declared, allThemesRequested: false }
+const createInitialState = (declaredTheme: string | null): ThemeState =>
+  declaredTheme !== null && THEMES.includes(declaredTheme)
+    ? { theme: declaredTheme, allThemesRequested: false }
     : { theme: THEMES[0], allThemesRequested: true };
-};
 
 export function createThemeStore({
   announce,
-  document = window.document,
+  declaredTheme,
 }: {
   announce: Announce;
-  document?: Document;
+  declaredTheme: string | null;
 }): ThemeStore {
-  const store = createStore<ThemeState & ThemeActions>()((set) => ({
-    ...createInitialState(document.documentElement),
+  return createStore<ThemeState & ThemeActions>()((set) => ({
+    ...createInitialState(declaredTheme),
     loadAllThemes() {
       set({ allThemesRequested: true });
     },
     setTheme(theme) {
       if (THEMES.includes(theme)) {
         set({ theme, allThemesRequested: true });
-        // The only other sign of the change is the new colours.
         announce(`Theme changed to ${theme}.`);
       }
     },
   }));
-
-  // On <html> rather than the app root, so popups rendered under <body> are themed as well.
-  const applyTheme = (theme: string): void =>
-    document.documentElement.setAttribute('data-theme', theme);
-
-  const linkAllThemes = (): void => {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = ALL_THEMES_STYLESHEET;
-    document.head.appendChild(link);
-  };
-
-  const initial = store.getState();
-  applyTheme(initial.theme);
-  if (initial.allThemesRequested) {
-    linkAllThemes();
-  }
-  store.subscribe((state, previous) => {
-    if (state.theme !== previous.theme) {
-      applyTheme(state.theme);
-    }
-    if (state.allThemesRequested && !previous.allThemesRequested) {
-      linkAllThemes();
-    }
-  });
-
-  return store;
 }
 
 export const ThemeStoreContext = createContext<ThemeStore | null>(null);

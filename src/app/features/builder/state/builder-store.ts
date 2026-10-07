@@ -109,10 +109,6 @@ export const selectCells = (
     return { ...cell, elements: canvasElements.filter((element) => isInCell(element, cell)) };
   });
 
-/*
- * Changes to the canvas are announced here rather than by the component that asked for them, so
- * a drag and its keyboard alternative report the same outcome to screen reader users.
- */
 export function createBuilderStore({
   announce,
   initial,

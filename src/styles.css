@@ -8,7 +8,7 @@
 @source not './test';
 /*
  * No theme is built into this file. `index.html` links the CSS of the theme the app starts in, and
- * the theme store fetches the rest on demand; both are daisyUI's prebuilt files, copied as assets.
+ * DocumentTheme links the rest on demand; both are daisyUI's prebuilt files, copied as assets.
  */
 @plugin "daisyui" {
   themes: false;

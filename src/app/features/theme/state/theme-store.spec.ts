@@ -1,34 +1,19 @@
 import themeOrder from 'daisyui/functions/themeOrder';
 import { Announce } from '../../../shared/announcer/announcer';
-import { ALL_THEMES_STYLESHEET, createThemeStore, THEMES, ThemeStore } from './theme-store';
+import { createThemeStore, THEMES, ThemeStore } from './theme-store';
 
 describe('ThemeStore', () => {
   const startingTheme = 'fantasy';
   const otherTheme = 'dracula';
   const unknownTheme = 'not-a-daisyui-theme';
 
-  let page: Document;
-  let root: HTMLElement;
   let announce: ReturnType<typeof vi.fn<Announce>>;
 
-  function createStore(): ThemeStore {
-    return createThemeStore({ announce, document: page });
-  }
-
-  function appliedTheme(): string | null {
-    return root.getAttribute('data-theme');
-  }
-
-  function allThemesStylesheets(): HTMLLinkElement[] {
-    return Array.from(page.head.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]')).filter(
-      (link) => link.getAttribute('href') === ALL_THEMES_STYLESHEET,
-    );
+  function createStore(declaredTheme: string | null = startingTheme): ThemeStore {
+    return createThemeStore({ announce, declaredTheme });
   }
 
   beforeEach(() => {
-    page = document.implementation.createHTMLDocument();
-    root = page.documentElement;
-    root.setAttribute('data-theme', startingTheme);
     announce = vi.fn<Announce>();
   });
 
@@ -37,48 +22,34 @@ describe('ThemeStore', () => {
   });
 
   describe('starting theme', () => {
-    it('is the theme the document declares', () => {
+    it('is the theme the page declares', () => {
       const store = createStore();
 
       expect(store.getState().theme).toBe(startingTheme);
     });
 
-    it('stays applied to the root element', () => {
-      createStore();
-
-      expect(appliedTheme()).toBe(startingTheme);
-    });
-
-    it('does not load the other themes', () => {
-      createStore();
-
-      expect(allThemesStylesheets()).toEqual([]);
-    });
-
-    it('is the first theme when the document declares none', () => {
-      root.removeAttribute('data-theme');
-
+    it('does not request the other themes', () => {
       const store = createStore();
 
-      expect(store.getState().theme).toBe(THEMES[0]);
-      expect(appliedTheme()).toBe(THEMES[0]);
+      expect(store.getState().allThemesRequested).toBe(false);
     });
 
-    it('is the first theme when the document declares one daisyUI does not ship', () => {
-      root.setAttribute('data-theme', unknownTheme);
-
-      const store = createStore();
+    it('is the first theme when the page declares none', () => {
+      const store = createStore(null);
 
       expect(store.getState().theme).toBe(THEMES[0]);
-      expect(appliedTheme()).toBe(THEMES[0]);
     });
 
-    it('loads every theme when it could not come from the document', () => {
-      root.removeAttribute('data-theme');
+    it('is the first theme when the page declares one daisyUI does not ship', () => {
+      const store = createStore(unknownTheme);
 
-      createStore();
+      expect(store.getState().theme).toBe(THEMES[0]);
+    });
 
-      expect(allThemesStylesheets().length).toBe(1);
+    it('requests every theme when it could not come from the page', () => {
+      const store = createStore(null);
+
+      expect(store.getState().allThemesRequested).toBe(true);
     });
 
     it('is announced to no one', () => {
@@ -88,39 +59,13 @@ describe('ThemeStore', () => {
     });
   });
 
-  describe('document', () => {
-    afterEach(() => {
-      document.documentElement.removeAttribute('data-theme');
-      document.head.querySelectorAll('link[rel="stylesheet"]').forEach((link) => link.remove());
-    });
-
-    it('is left alone when the store is given another one', () => {
-      const store = createStore();
-
-      store.getState().setTheme(otherTheme);
-
-      expect(document.documentElement.hasAttribute('data-theme')).toBe(false);
-      expect(document.head.querySelector('link[rel="stylesheet"]')).toBeNull();
-    });
-
-    it('is the page itself unless the store is given another one', () => {
-      document.documentElement.setAttribute('data-theme', startingTheme);
-      const store = createThemeStore({ announce });
-
-      store.getState().setTheme(otherTheme);
-
-      expect(document.documentElement.getAttribute('data-theme')).toBe(otherTheme);
-      expect(appliedTheme()).toBe(startingTheme);
-    });
-  });
-
   describe('loadAllThemes', () => {
-    it('adds the stylesheet holding every theme', () => {
+    it('requests every theme', () => {
       const store = createStore();
 
       store.getState().loadAllThemes();
 
-      expect(allThemesStylesheets().length).toBe(1);
+      expect(store.getState().allThemesRequested).toBe(true);
     });
 
     it('leaves the theme as it was', () => {
@@ -129,17 +74,6 @@ describe('ThemeStore', () => {
       store.getState().loadAllThemes();
 
       expect(store.getState().theme).toBe(startingTheme);
-    });
-
-    it('adds the stylesheet only once', () => {
-      const store = createStore();
-      store.getState().loadAllThemes();
-      allThemesStylesheets();
-
-      store.getState().loadAllThemes();
-      store.getState().setTheme(otherTheme);
-
-      expect(allThemesStylesheets().length).toBe(1);
     });
 
     it('announces nothing', () => {
@@ -160,20 +94,12 @@ describe('ThemeStore', () => {
       expect(store.getState().theme).toBe(otherTheme);
     });
 
-    it('applies a selected theme to the root element', () => {
+    it('requests every theme, as only the starting one is on the page', () => {
       const store = createStore();
 
       store.getState().setTheme(otherTheme);
 
-      expect(appliedTheme()).toBe(otherTheme);
-    });
-
-    it('loads every theme, as only the starting one is on the page', () => {
-      const store = createStore();
-
-      store.getState().setTheme(otherTheme);
-
-      expect(allThemesStylesheets().length).toBe(1);
+      expect(store.getState().allThemesRequested).toBe(true);
     });
 
     it('ignores a theme daisyUI does not ship', () => {
@@ -182,8 +108,7 @@ describe('ThemeStore', () => {
       store.getState().setTheme(unknownTheme);
 
       expect(store.getState().theme).toBe(startingTheme);
-      expect(appliedTheme()).toBe(startingTheme);
-      expect(allThemesStylesheets()).toEqual([]);
+      expect(store.getState().allThemesRequested).toBe(false);
     });
 
     it('announces the selected theme', () => {

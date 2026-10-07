@@ -1,6 +1,6 @@
 # DropUI (React)
 
-A drag & drop UI builder: pick an element type from the palette and drag it onto the canvas, or add it from the keyboard through the palette menus. This is the React port of the Angular app in the sibling `drop-ui` repository; the two share one end-to-end suite and are meant to behave the same.
+A drag & drop UI builder: pick an element type from the palette and drag it onto the canvas, or add it from the keyboard through the palette menus. This is the React port of an Angular app: [docs/angular-react-divergence.md](docs/angular-react-divergence.md) records what the two share and how they differ.
 
 ## Stack
 
@@ -22,13 +22,14 @@ React 19, Vite 8 and TypeScript 6. State in [Zustand](https://zustand.docs.pmnd.
 src/
   main.tsx                 creates the announcer and both stores, provides them, renders <App />
   app/features/builder/    models, the builder store, the shell, canvas, palette, layout panel, dropped elements
-  app/features/theme/      the theme store and the theme picker
+  app/features/theme/      the theme store, the theme picker and the component that themes the page
   app/shared/              the screen reader announcer and the two general dialogs
 e2e/                       end-to-end tests
 docs/adr/                  the decisions behind the stores and the element model
+docs/                      the journal of how this app differs from the Angular one
 ```
 
-daisyUI's prebuilt theme stylesheets are not bundled: the build copies them to `themes/` and `themes.css`, `index.html` links the starting theme, and the theme store loads the rest when the theme list is first opened.
+daisyUI's prebuilt theme stylesheets are not bundled: the build copies them to `themes/` and `themes.css`, `index.html` links the starting theme, and `DocumentTheme` links the rest when the theme list is first opened.
 
 ## Decisions
 

@@ -30,8 +30,6 @@ export function ThemePicker({ className }: { className?: string }) {
             loadAllThemes();
           }
         }}
-        // Base UI focuses the first item, or none after a click, and only once it has opened; the list
-        // is long, so it starts on the current theme instead, which also scrolls it into view.
         onOpenChangeComplete={(open) => {
           if (open) {
             checkedItem.current?.focus();
@@ -109,7 +107,6 @@ export function ThemePicker({ className }: { className?: string }) {
           </Menu.Positioner>
         </Menu.Portal>
       </Menu.Root>
-      {/* Read out with the button, which otherwise only tells the current theme once its list is open. */}
       <span id={CURRENT_THEME_ID} hidden>
         Current theme: {theme}
       </span>

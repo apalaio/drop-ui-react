@@ -2,9 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-06
+- **Amended:** 2026-10-07 (rule 11)
 - **Scope:** all application state under `src/app/features/`
-
-This is the React counterpart of ADR 0001 in the Angular `drop-ui` repository, which holds the same state in NgRx SignalStores. The rules carry over one for one; only the mechanism changes.
 
 ## Context
 
@@ -34,17 +33,17 @@ Shared state is held in Zustand stores (`zustand` 5): vanilla stores, handed to 
 
 ### How a store is written
 
-6. **Each action is one `set` call with an updater function** that returns new objects and arrays. One user action is therefore one atomic state change.
+6. **Each action is one `set` call**, so one user action is one atomic state change. An action that builds the new state from the old one passes an updater function, which returns new objects and arrays and never changes the old ones. An action that only overwrites fields, such as `setTheme`, passes the fields.
 7. **The store owns its invariants.** It validates and normalises what it is given, and callers pass raw values. Examples: `setGridSize` ignores non-finite numbers and clamps to 1–12; `setTheme` ignores names that are not daisyUI themes; `updateText` ignores an element that has no text; `updateValue` ignores a dropdown value that none of its options has, and `updateOptions` moves the selection to the first option when the selected one is gone; `moveElement` and `removeElement` ignore a `uid` that is not on the canvas.
 8. **Derived data is a pure exported function and is never stored.** `selectCells(grid, canvasElements)` builds the cells. Components get them from `useCells()`, which selects `grid` and `canvasElements` separately and derives the cells with `useMemo`.
 9. **Stored state is flat.** `canvasElements` is one array for the whole canvas. Each element carries its `row` and `column`, and the order of two elements in the same cell is their relative order in the array.
 10. **Pure helpers are module-level functions above the factory** (`createElement`, `insertIntoCell`, `clampGridSize`), so actions stay short and the helpers need no store to reason about.
-11. **Side effects are subscriptions set up in the factory.** `createThemeStore` writes the theme to `<html data-theme>` once and then from `store.subscribe` on every change, and adds the stylesheet holding every theme the first time `allThemesRequested` is set. Actions only set state; `loadAllThemes` sets that flag and the subscription does the DOM work.
-12. **The store announces its own changes.** Each factory takes an `announce(message)` function and calls it after the state has changed, so a drag and its keyboard alternative tell screen reader users the same thing. No component calls the announcer.
+11. **A store touches nothing outside itself; keeping the page in step with state is a component's job.** A store never reads or writes the DOM and never subscribes to itself. What has to match the state at all times is rendered, or synchronised in a `useEffect`, by a component that reads the store. [`DocumentTheme`](../../src/app/features/theme/document-theme/document-theme.tsx) writes `theme` to `<html data-theme>` in an effect, since React does not render `<html>`, and renders the `<link>` to the stylesheet holding every theme once `allThemesRequested` is set. `loadAllThemes` only sets that flag.
+12. **The store announces its own changes.** An announcement belongs to the user action, not to the state the action leaves behind: nothing is announced when the app starts in a theme. So it is made where the action is, not in an effect. Each factory takes an `announce(message)` function, and an action calls it after its `set`, so a drag and its keyboard alternative tell screen reader users the same thing. No component calls the announcer.
 
 ### How stores are tested
 
-A store is tested for real in a `*.spec.ts`: the spec calls the factory with a `vi.fn()` as `announce`, then calls actions and reads state through `store.getState()`. A component test mounts the component under real stores, created with the state the test needs through the factory's `initial` option. See [the testing guide](../../.claude/guides/testing.md).
+A store is tested for real in a `*.spec.ts`: the spec calls the factory with a `vi.fn()` as `announce`, then calls actions and reads state through `store.getState()`. No spec needs a DOM, because no store touches one. A component test mounts the component under real stores, created with the state the test needs through the factories' options (`initial`, `declaredTheme`). See [the testing guide](../../.claude/guides/testing.md).
 
 ## Consequences
 
@@ -55,18 +54,20 @@ A store is tested for real in a `*.spec.ts`: the spec calls the factory with a `
 - State transitions are in one file per feature and can be unit-tested without rendering anything.
 - A component cannot corrupt state, because it only has actions and the store checks every input.
 - The cells cannot drift from the grid or the element list, because they are derived from them.
-- A store is created by a function that takes what it depends on, so a test gives it a spy for the announcer, a preset canvas or a detached document without mocking a module.
+- A store is created by a function that takes what it depends on, so a test gives it a spy for the announcer, a preset canvas or a starting theme without mocking a module.
+- A store is state and actions and nothing else, so what the app does to the page is found in components, where a React developer looks for it.
 
 **Costs and limits**
 
-- **A selector must return something that is already in the state.** Zustand compares what a selector returns by identity, so one that builds an array or object returns a "new" value on every call and the component renders without end. This is why the cells are derived in `useCells()` and not in a selector.
-- **Write protection is a convention.** SignalStore state cannot be patched from outside; a Zustand store object can. Rule 5 holds because components are only ever given the hook.
+- **A selector must return the same value for the same state.** Zustand compares what a selector returns by identity, so one that builds an array or object returns a "new" value on every call and the component renders without end. Zustand's `useShallow` lifts that for a flat array or object whose entries are already in the state. The cells are arrays inside an array, which it does not compare, so they are derived in `useCells()` and not in a selector.
+- **Write protection is a convention.** A Zustand store object has `setState`, and anything that holds the object can call it. Rule 5 holds because components are only ever given the hook.
 - **State and actions share one object.** `BuilderState & BuilderActions` is what a selector sees, and the factory's `initial` option covers the state half only.
 - **One document at a time.** `main.tsx` provides one builder store for the whole app. A second canvas would need its own provider around its own part of the tree.
 - **Nothing is persisted.** State is in memory and a reload resets it. Persistence would be added behind the store, where the factory is the seam, not in components.
 - **The cells are recomputed in full on every element or grid change**, once in each component that calls `useCells()`. Each run filters the whole element list once per cell. This is fine at the 12 × 12 cap and would need indexing if the cap is raised.
 - **Flat storage makes some results depend on history.** When the grid shrinks and two cells merge, the merged order follows the array, which reflects the order of earlier drops and moves.
-- **The theme store reads its starting state from the page.** The stylesheet of the starting theme has to be on the page before any script runs, so `index.html` themes the first paint itself: it names the starting theme in `data-theme` on `<html>` and links that theme's CSS. The store reads the name from that attribute instead of repeating it, which makes `index.html` the only place the default theme is written. A spec or component test has to set the attribute, or pass its own document, before the store is created.
+- **The theme store is told its starting theme by the page.** The stylesheet of the starting theme has to be on the page before any script runs, so `index.html` themes the first paint itself: it names the starting theme in `data-theme` on `<html>` and links that theme's CSS. `main.tsx` reads the name from that attribute and hands it to the factory as `declaredTheme`, which makes `index.html` the only place the default theme is written. A spec passes the name itself, and a component test passes it as the `theme` option of `renderWithStores`.
+- **The page follows the theme only where `DocumentTheme` is mounted.** `App` renders it. A component mounted alone in a test changes the store and leaves `<html>` as it was.
 - **Components depend on the concrete store.** Reusing a builder component elsewhere means putting a `BuilderStoreContext` provider above it; without one the hook throws.
 
 ## Alternatives considered
@@ -74,4 +75,6 @@ A store is tested for real in a `*.spec.ts`: the spec calls the factory with a `
 - **Props and callbacks through the shell.** Rejected: the palette, layout panel, canvas and dropped elements would all communicate through a component with no logic for that state.
 - **State in React context with `useReducer`.** Workable, but every consumer of a context re-renders on every change to its value, and each feature would invent its own structure for actions and derived data.
 - **Redux Toolkit.** Rejected as too much ceremony for a client-only app with two small state slices.
-- **Zustand's `create`, a hook bound to one module-level store.** Rejected: a module singleton cannot be handed an announcer, a starting canvas or a document, which is what the specs and component tests rely on.
+- **Zustand's `create`, a hook bound to one module-level store.** Rejected: a module singleton cannot be handed an announcer, a starting canvas or a starting theme, which is what the specs and component tests rely on.
+- **Side effects run by the store, from `store.subscribe` in the factory.** This is what the first version of this ADR prescribed. Rejected: the factory then changed the page as it was called and never unsubscribed, which is only safe for a store created once outside React, and the specs needed a detached document to keep it off the real one.
+- **The stylesheet link with `precedence`**, React's own way to load a stylesheet. Rejected: React moves such a link to `<head>` and leaves it there when the component unmounts, so a test could not start from a page without it. Rendered in place, the link loads the same stylesheet and goes with the component.

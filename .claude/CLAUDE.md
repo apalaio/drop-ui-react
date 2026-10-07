@@ -1,6 +1,6 @@
 DropUI is a drag & drop ui builder. The user selects a ui element type from the navigation-style menu and drags it in the UI. In that way, the user can create a full client ui just by dragging and dropping on the page.
 
-This repository is the React port of the Angular app in the sibling `drop-ui` repository. Both are meant to behave the same: the Playwright suite in `e2e/` is shared between them and is the contract.
+This repository is the React port of the Angular app in the sibling `drop-ui` repository. What the two share and how they differ is recorded in [docs/angular-react-divergence.md](../docs/angular-react-divergence.md), and nowhere else: a comparison with Angular goes in that journal, not in an ADR, a guide, the README or a code comment. Read it before changing anything in `e2e/`.
 
 ## Agent behavior
 
