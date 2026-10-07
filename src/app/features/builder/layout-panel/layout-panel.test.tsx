@@ -238,5 +238,36 @@ describe(LayoutPanel.name, () => {
       await waitFor(() => expect(builderStore.getState().grid).toEqual({ rows: 4, columns: 1 }));
       expect(screen.getByRole('spinbutton', { name: columnsLabel })).toHaveFocus();
     });
+
+    it('should keep an exponent while the rest of the number is typed', async () => {
+      const { builderStore } = renderWithStores(<LayoutPanel />);
+      screen.getByRole('spinbutton', { name: rowsLabel }).focus();
+
+      await userEvent.keyboard('{Control>}a{/Control}1e1{Enter}');
+
+      await waitFor(() => expect(builderStore.getState().grid).toEqual({ rows: 10, columns: 1 }));
+      expect(screen.getByRole('spinbutton', { name: rowsLabel })).toHaveValue(10);
+    });
+
+    it('should keep a minus sign while the rest of the number is typed', async () => {
+      const { builderStore } = renderWithStores(<LayoutPanel />, {
+        initial: { grid: { rows: 5, columns: 1 } },
+      });
+      screen.getByRole('spinbutton', { name: rowsLabel }).focus();
+
+      await userEvent.keyboard('{Control>}a{/Control}-3{Enter}');
+
+      await waitFor(() => expect(builderStore.getState().grid).toEqual({ rows: 1, columns: 1 }));
+      expect(screen.getByRole('spinbutton', { name: rowsLabel })).toHaveValue(1);
+    });
+
+    it('should show the grid size again when an unfinished number is left', async () => {
+      renderWithStores(<LayoutPanel />, { initial: { grid: { rows: 5, columns: 1 } } });
+      screen.getByRole('spinbutton', { name: rowsLabel }).focus();
+
+      await userEvent.keyboard('{Control>}a{/Control}1e{Tab}');
+
+      await waitFor(() => expect(screen.getByRole('spinbutton', { name: rowsLabel })).toHaveValue(5));
+    });
   });
 });

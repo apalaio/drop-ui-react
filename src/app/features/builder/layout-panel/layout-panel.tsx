@@ -1,4 +1,4 @@
-import { useEffect, useReducer, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { GridAxis, MAX_GRID_SIZE, MIN_GRID_SIZE } from '../models/grid-layout';
 import { useBuilderStore } from '../state/builder-store';
 
@@ -6,7 +6,10 @@ function GridSizeInput({ axis, label }: { axis: GridAxis; label: string }) {
   const size = useBuilderStore((state) => state.grid[axis]);
   const setGridSize = useBuilderStore((state) => state.setGridSize);
   const input = useRef<HTMLInputElement>(null);
-  const [shown, show] = useReducer((count: number) => count + 1, 0);
+  /*
+   * What is being typed, until it is committed or the field is left.
+   */
+  const [draft, setDraft] = useState<string | null>(null);
 
   /*
    * Committed on the native change event rather than React's onChange, which fires per keystroke:
@@ -20,21 +23,11 @@ function GridSizeInput({ axis, label }: { axis: GridAxis; label: string }) {
     }
     const commit = (): void => {
       setGridSize(axis, element.valueAsNumber);
-      show();
+      setDraft(null);
     };
     element.addEventListener('change', commit);
     return () => element.removeEventListener('change', commit);
   }, [axis, setGridSize]);
-
-  /*
-   * An entry the store rejected or clamped can leave the store's value as it was, in which case
-   * nothing renders and the field would keep what was typed. `shown` writes it back all the same.
-   */
-  useEffect(() => {
-    if (input.current) {
-      input.current.value = String(size);
-    }
-  }, [size, shown]);
 
   return (
     <input
@@ -44,8 +37,9 @@ function GridSizeInput({ axis, label }: { axis: GridAxis; label: string }) {
       aria-label={label}
       min={MIN_GRID_SIZE}
       max={MAX_GRID_SIZE}
-      defaultValue={size}
-      onBlur={show}
+      value={draft ?? String(size)}
+      onChange={({ target }) => setDraft(target.value)}
+      onBlur={() => setDraft(null)}
     />
   );
 }
@@ -60,10 +54,9 @@ export function LayoutPanel() {
       <ul className="flex w-full flex-col gap-1">
         <li className="flex items-center justify-between gap-2 rounded-field border border-base-300 bg-base-100 px-3 py-1.5 text-sm">
           <span>Grid</span>
-          {/* The × is generated content, so the entry's text stays just "Grid". */}
           <span className="flex items-center gap-1 text-xs text-base-content/70">
             <GridSizeInput axis="rows" label="Grid rows" />
-            <span className="before:content-['×']" aria-hidden="true" />
+            <span aria-hidden="true">x</span>
             <GridSizeInput axis="columns" label="Grid columns" />
           </span>
         </li>

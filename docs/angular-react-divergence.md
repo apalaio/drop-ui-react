@@ -140,7 +140,7 @@ The theme list starts on the current theme in both. Angular does it in an `effec
 
 **Controls on the canvas.** Angular binds one way, `[value]="el.value"`, and writes in an `(input)` handler. Between store updates the field keeps whatever the user typed, so a date with one part being retyped simply stays as it is. React's controls are controlled (`value` plus `onChange`), and React writes the store's value back on every render. `Datepicker` in `dropped-element.tsx` therefore keeps an `incomplete` flag and shows the empty value while a part is being retyped.
 
-**The grid size fields.** Both apps commit on the native `change` event, not per keystroke. In Angular that is `(change)` in the template. React's `onChange` fires on every keystroke, so `GridSizeInput` in [`layout-panel.tsx`](../src/app/features/builder/layout-panel/layout-panel.tsx) adds a native `change` listener in an effect and leaves the field uncontrolled.
+**The grid size fields.** Both apps commit on the native `change` event, not per keystroke. In Angular that is `(change)` in the template. React's `onChange` fires on every keystroke, so `GridSizeInput` in [`layout-panel.tsx`](../src/app/features/builder/layout-panel/layout-panel.tsx) adds a native `change` listener in an effect. Its `onChange` only keeps what is being typed in a local `draft`, which the field shows until the commit or a blur drops it and the store's size shows again.
 
 ### Start-up, build and dev server
 
