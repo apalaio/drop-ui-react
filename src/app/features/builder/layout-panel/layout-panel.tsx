@@ -6,9 +6,6 @@ function GridSizeInput({ axis, label }: { axis: GridAxis; label: string }) {
   const size = useBuilderStore((state) => state.grid[axis]);
   const setGridSize = useBuilderStore((state) => state.setGridSize);
   const input = useRef<HTMLInputElement>(null);
-  /*
-   * What is being typed, until it is committed or the field is left.
-   */
   const [draft, setDraft] = useState<string | null>(null);
 
   /*

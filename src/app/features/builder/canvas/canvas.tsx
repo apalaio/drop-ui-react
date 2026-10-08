@@ -14,7 +14,6 @@ const DROP_ZONE =
 const DROP_ZONE_STATE = {
   idle: 'border-base-300 bg-base-100',
   receiving: 'border-primary/50 bg-base-100',
-  // Cells overlap their neighbours' borders, so the hovered one is lifted to show its whole outline.
   hovered: 'z-10 border-primary bg-primary/5',
 };
 
@@ -51,11 +50,10 @@ function CanvasCell({
   const uids = cell.elements.map((element) => element.uid);
   const hovered = over !== null && (over.id === id || uids.includes(String(over.id)));
   const state = !active ? 'idle' : hovered ? 'hovered' : 'receiving';
-  // A column only while empty, to centre the hint. Elements need block flow, so spans share a line.
+  // A column only while empty, to centre the hint.
   const layout = uids.length ? '' : ' flex flex-col';
 
   return (
-    // tabIndex -1: not in the focus order, yet focusable when an element is deleted from it.
     <div
       ref={cellRef}
       className={`${DROP_ZONE} ${DROP_ZONE_STATE[state]}${layout}`}
