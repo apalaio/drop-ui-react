@@ -175,6 +175,7 @@ These were noted while the app was ported. No test in either repository asserts 
 - **A click outside the delete confirmation.** In Angular it closes the dialog, which is the CDK dialog's default. In React the confirmation is a Base UI `AlertDialog`, which stays open until Cancel, Delete or Escape.
 - **Dropping an element that was dragged on the canvas.** In Angular the CDK slides it into its new place, unless reduced motion is requested. In React the copy that followed the pointer disappears at once (`dropAnimation={null}` in `dropped-element.tsx`).
 - **Dragging an element over another cell.** In Angular the CDK shows the faded placeholder where the element would land in that cell. In React the placeholder stays in the element's own cell until the drop, because dnd-kit moves a sortable only among the elements of its own list.
+- **The fact panel.** Added on [2026-10-08](#2026-10-08-a-backend-call-in-react-only): the bottom of the React sidebar holds a panel that shows a fact loaded from a public API. The Angular sidebar has no such panel.
 
 ## 2026-10-07: theme side effects leave the React store
 
@@ -192,3 +193,24 @@ At the port, the React theme store did what the Angular one does: it wrote the t
 - The link is appended to `<head>` in Angular and stays. In React it is rendered inside `#root` and goes when `DocumentTheme` unmounts.
 - The Angular store spec sets `data-theme` on the real document, flushes effects and cleans up after itself. The React store spec passes a string and has no DOM, and what happens to the page is covered in [`document-theme.test.tsx`](../src/app/features/theme/document-theme/document-theme.test.tsx).
 - In React the page follows the theme only where `DocumentTheme` is mounted. A component mounted alone in a test changes the store and leaves `<html>` as it was.
+
+## 2026-10-08: a backend call, in React only
+
+**React.** A panel named "Did you know?" sits at the bottom of the sidebar. It shows the fact of the day from a public API (`uselessfacts.jsph.pl`) and loads a random one when its button is pressed. Four pieces are behind it, each a factory that is given the one before it, and [`main.tsx`](../src/main.tsx) wires them together:
+
+- an HTTP client, which is `fetch` wrapped in interceptors: [`src/app/shared/http/`](../src/app/shared/http/http-client.ts);
+- a service that knows the addresses and checks the answers: [`fact-service.ts`](../src/app/features/fact/services/fact-service.ts);
+- a third store, which holds the fact and whether one is loading: [`fact-store.ts`](../src/app/features/fact/state/fact-store.ts);
+- the panel: [`fact-panel.tsx`](../src/app/features/fact/fact-panel/fact-panel.tsx).
+
+**Angular.** The app has no such panel, calls no backend and does not use `HttpClient`.
+
+**Why.** The panel was added here to see how a backend call is built in React, which has no dependency injection, no `HttpClient` and no interceptors of its own. Nothing was added to the Angular app.
+
+**What follows.**
+
+- The panel is a visible difference that no test in either repository covers. It is listed under [Visible differences the tests do not cover](#visible-differences-the-tests-do-not-cover).
+- The six files in `e2e/` are unchanged and pass in both apps, because the panel is built around what they assert. It has no heading, as `app.e2e.ts` lists the headings of the page. Its button comes after the palette, as `keyboard.e2e.ts` counts the Tab presses from the theme picker to the first palette item. Its text is not in a list item, as the drag tests find a palette item by its text among the list items of the sidebar, and a fact can contain "div" or "span". It is held to the bottom of the sidebar and grows upwards, so a fact arriving moves neither the palette nor the canvas.
+- The first fact is loaded without an announcement. An announcement would replace the one an e2e test is waiting for.
+- Each page an e2e test opens in the React app sends one request to the API. No assertion depends on the answer. The Angular e2e run sends none.
+- Rule 13 of ADR 0001 exists in this repository only.

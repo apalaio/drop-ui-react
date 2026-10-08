@@ -49,6 +49,16 @@ describe(BuilderShell.name, () => {
     ).toBeInTheDocument();
   });
 
+  it('should place the fact panel below the palette in the sidebar', () => {
+    const sidebar = screen.getByRole('complementary', { name: 'Sidebar' });
+    const palette = within(sidebar).getByRole('list', { name: 'Elements' });
+    const panel = within(sidebar).getByRole('region', { name: 'Did you know?' });
+
+    expect(palette.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
   it('should show an element added from the palette on the canvas', async () => {
     const sidebar = screen.getByRole('complementary', { name: 'Sidebar' });
     fireEvent.click(within(sidebar).getByRole('button', { name: 'Add Block text' }));

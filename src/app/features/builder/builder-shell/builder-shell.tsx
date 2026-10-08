@@ -12,6 +12,7 @@ import {
 } from '@dnd-kit/core';
 import { CSS } from '@dnd-kit/utilities';
 import { JSX, useRef, useState } from 'react';
+import { FactPanel } from '../../fact/fact-panel/fact-panel';
 import { ThemePicker } from '../../theme/theme-picker/theme-picker';
 import { Canvas } from '../canvas/canvas';
 import { Dragged, DropTarget, isCanvasElement, resolveDrop } from '../canvas/canvas-drop';
@@ -109,11 +110,12 @@ export function BuilderShell(): JSX.Element {
         </header>
 
         <aside
-          className="shell-sidebar overflow-y-auto border-r border-base-300 bg-base-100"
+          className="shell-sidebar flex flex-col overflow-y-auto border-r border-base-300 bg-base-100"
           aria-label="Sidebar"
         >
           <LayoutPanel />
           <ElementPalette />
+          <FactPanel className="mt-auto" />
         </aside>
 
         <main className="shell-main overflow-auto bg-base-200 p-6">

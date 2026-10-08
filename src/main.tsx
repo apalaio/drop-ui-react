@@ -6,9 +6,15 @@ import {
   BuilderStoreContext,
   createBuilderStore,
 } from './app/features/builder/state/builder-store';
+import { createFactService } from './app/features/fact/services/fact-service';
+import { createFactStore, FactStoreContext } from './app/features/fact/state/fact-store';
 import { createThemeStore, ThemeStoreContext } from './app/features/theme/state/theme-store';
 import { createAnnouncer } from './app/shared/announcer/announcer';
+import { createHttpClient } from './app/shared/http/http-client';
+import { rejectHttpErrors, timeout } from './app/shared/http/http-interceptors';
 import './styles.css';
+
+const REQUEST_TIMEOUT_MS = 10_000;
 
 /*
  * No popup in this app animates, yet Base UI keeps a closed menu or dialog mounted until the next
@@ -24,6 +30,8 @@ const themeStore = createThemeStore({
   announce,
   declaredTheme: document.documentElement.getAttribute('data-theme'),
 });
+const http = createHttpClient([rejectHttpErrors, timeout(REQUEST_TIMEOUT_MS)]);
+const factStore = createFactStore({ announce, service: createFactService(http) });
 
 const root = createRoot(document.getElementById('root')!);
 
@@ -37,7 +45,9 @@ flushSync(() =>
     <StrictMode>
       <ThemeStoreContext value={themeStore}>
         <BuilderStoreContext value={builderStore}>
-          <App />
+          <FactStoreContext value={factStore}>
+            <App />
+          </FactStoreContext>
         </BuilderStoreContext>
       </ThemeStoreContext>
     </StrictMode>,

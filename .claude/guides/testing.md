@@ -1,7 +1,7 @@
 # Testing
 
 > **Purpose:** When to write a `*.spec.ts`, a `*.test.tsx`, or a Playwright `*.e2e.ts`, and how to write each.
-> **Last updated:** 2026-10-07
+> **Last updated:** 2026-10-08
 
 ---
 
@@ -11,7 +11,7 @@ Unit and component tests run on **Vitest**, as two projects of one `vitest.confi
 
 | Style                    | File suffix  | Environment                                    | What it tests                                                                  | Command                                    |
 | ------------------------ | ------------ | ---------------------------------------------- | ------------------------------------------------------------------------------ | ------------------------------------------ |
-| Vitest                   | `*.spec.ts`  | `jsdom`                                        | Store factories, pure functions, the announcer, input → class mappings         | `npm test -- --watch=false`                |
+| Vitest                   | `*.spec.ts`  | `jsdom`                                        | Store factories, services, HTTP interceptors, pure functions, the announcer, input → class mappings | `npm test -- --watch=false`                |
 | Vitest + Testing Library | `*.test.tsx` | Real Chromium via `@vitest/browser-playwright` | Component **rendering and behaviour**: branches, DOM output, a11y roles, focus | `npm run test:components -- --watch=false` |
 | Playwright               | `*.e2e.ts`   | The served app (`npm run dev`) in Chromium     | Cross-component user flows, above all palette → canvas drag & drop             | `npm run e2e`                              |
 
@@ -35,6 +35,7 @@ Wiring:
 | A store action transforming state, a store guard, what a store announces                    | `*.spec.ts`                                                                                           |
 | A pure function (`resolveDrop`, `selectCells`, `cellLabel`)                                 | `*.spec.ts`                                                                                           |
 | An input → class mapping (`OUTLINE`, `displayClass`)                                         | `*.spec.ts`                                                                                           |
+| What a service requests and makes of the answer, what an HTTP interceptor does to a request or a response | `*.spec.ts`                                                                              |
 | Rendered text, button labels, a conditional (`&&`, `? :`), a `switch` case, a `.map`         | `*.test.tsx`                                                                                          |
 | Aria roles and names, form-control accessibility, empty-state rendering                     | `*.test.tsx`                                                                                          |
 | An event handler with a visible result                                                      | `*.test.tsx`: fire the event and assert the observable effect                                         |
@@ -110,6 +111,8 @@ describe('BuilderStore', () => {
 | The announcer             | Pass `vi.fn<Announce>()` as `announce` and assert on it. It is the store's one injected dependency, so asserting on it is asserting on the store's output                                                   |
 | The document              | A store never touches it (ADR 0001 rule 11), so a store spec has none. `createAnnouncer` takes a `Document`: give it a detached one, `document.implementation.createHTMLDocument()`, so nothing has to be cleaned up |
 | Spies                     | `vi.fn()` for an injected function. Never `vi.spyOn` a store's own action                                                                                                                                    |
+| The backend               | No spec sends a request. Each layer gets a stand-in for the one below it: a store an object of `vi.fn()`s as its service, a service a `vi.fn<HttpHandler>()` that resolves a `new Response(JSON.stringify(body))`, an interceptor a `vi.fn<HttpHandler>()` as `next`. Only `http-client.spec.ts` replaces `fetch` |
+| A wait                    | `mockReturnValue(new Promise(() => undefined))` stands for a request that is still on its way, so the state in between can be read. `await` the action itself to read the state after it                    |
 | Class mappings            | Assert on the exported mapping (`OUTLINE.div`), and render with `createElement` (a `.ts` file has no JSX) only to prove the component applies it; this is the one place `classList` is read                |
 | What jsdom lacks          | `matchMedia` (stub it with `vi.stubGlobal` when a rendered component calls it), layout, real focus order. Anything that needs those is a `*.test.tsx`                                                        |
 | Per-test timeouts         | Don't add. A slow test is too slow, not under-budgeted                                                                                                                                                       |
@@ -175,7 +178,7 @@ describe(Canvas.name, () => {
 | Preset the store, don't stub it           | `renderWithStores(ui, { initial })`. The real store with known state is the "world" the component renders; see [Drive branches](#drive-branches-never-set-state)   |
 | `render` is synchronous                   | `beforeEach(() => { mount(); })`, with a block body. Only make `mount` `async` when it has to wait for a portal, as the dialogs' does                              |
 
-`renderWithStores(ui, options)` creates one builder store and one theme store, wraps `ui` in both providers, and returns Testing Library's result plus `builderStore` and `themeStore`.
+`renderWithStores(ui, options)` creates one builder store, one theme store and one fact store, wraps `ui` in their providers, and returns Testing Library's result plus `builderStore`, `themeStore` and `factStore`.
 
 | Option     | Type                    | Purpose                                                                                                                                             |
 | ---------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -183,6 +186,8 @@ describe(Canvas.name, () => {
 | `announce` | `Announce`              | Defaults to a real `createAnnouncer()`, so the live region is in the DOM and `screen.findByText('Theme changed to dracula.')` can read it           |
 | `theme`    | `string`                | The theme the theme store is told the page declares, as `main.tsx` tells it `index.html`'s. Defaults to `fantasy`                                   |
 | `dnd`      | `boolean`               | Wraps in a `DndContext` with the pointer sensor only, like the shell's. Defaults to `true`; pass `false` for `BuilderShell` and `App`, which bring their own |
+| `factService` | `FactService`        | What the fact store asks for facts. Defaults to `createFactServiceStub()`, which answers at once with `FACT_OF_THE_DAY` and `RANDOM_FACT`, so no component test sends a request. Spread the stub and replace one method to make it wait or fail |
+| `factState` | `Partial<FactState>`   | Preset `fact` and `status`. With a status other than `idle` the panel asks for nothing when it mounts                                              |
 
 After each test the helper removes `data-theme` from `<html>` and the announcer's live regions. Testing Library unmounts the tree by itself, and the `themes.css` link goes with it.
 
@@ -370,7 +375,7 @@ Spying on a store action, a hook, or a module function and asserting it was call
 | Changes a store and nothing on the page | The store                  | `builderStore.getState()`; see [Reading the store](#reading-the-store)                      |
 | Reports to its parent                   | The callback prop          | `vi.fn()` passed as the prop                                                                |
 
-The only `vi.fn()` in a component test is one the test **passes in**: a callback prop, or `announce` given to `renderWithStores`.
+The only `vi.fn()` in a component test is one the test **passes in**: a callback prop, or `announce` given to `renderWithStores`. A `factService` passed in is a plain object whose methods return the promise the test needs; a test that has to know whether it was asked counts in a variable of its own.
 
 ### Debugging
 

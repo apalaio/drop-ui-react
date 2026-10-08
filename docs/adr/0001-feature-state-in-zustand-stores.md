@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-06
-- **Amended:** 2026-10-07 (rule 11)
+- **Amended:** 2026-10-07 (rule 11), 2026-10-08 (rule 13)
 - **Scope:** all application state under `src/app/features/`
 
 ## Context
@@ -22,7 +22,7 @@ Shared state is held in Zustand stores (`zustand` 5): vanilla stores, handed to 
 
 ### Where stores live
 
-1. **One store per feature**, in `src/app/features/<feature>/state/<feature>-store.ts`. The file exports a factory, a context and a selector hook. [`main.tsx`](../../src/main.tsx) creates one instance of each store and provides it at the root. Today there are two: [`builder-store.ts`](../../src/app/features/builder/state/builder-store.ts) and [`theme-store.ts`](../../src/app/features/theme/state/theme-store.ts).
+1. **One store per feature**, in `src/app/features/<feature>/state/<feature>-store.ts`. The file exports a factory, a context and a selector hook. [`main.tsx`](../../src/main.tsx) creates one instance of each store and provides it at the root. Today there are three: [`builder-store.ts`](../../src/app/features/builder/state/builder-store.ts), [`theme-store.ts`](../../src/app/features/theme/state/theme-store.ts) and [`fact-store.ts`](../../src/app/features/fact/state/fact-store.ts).
 2. **Stores do not use each other.** A component that needs two stores calls both hooks. What both stores need, such as the announcer, is passed to each factory.
 
 ### How components use a store
@@ -33,17 +33,18 @@ Shared state is held in Zustand stores (`zustand` 5): vanilla stores, handed to 
 
 ### How a store is written
 
-6. **Each action is one `set` call**, so one user action is one atomic state change. An action that builds the new state from the old one passes an updater function, which returns new objects and arrays and never changes the old ones. An action that only overwrites fields, such as `setTheme`, passes the fields.
+6. **Each action is one `set` call**, so one user action is one atomic state change. An action that builds the new state from the old one passes an updater function, which returns new objects and arrays and never changes the old ones. An action that only overwrites fields, such as `setTheme`, passes the fields. The one exception is an action that waits for a backend (rule 13).
 7. **The store owns its invariants.** It validates and normalises what it is given, and callers pass raw values. Examples: `setGridSize` ignores non-finite numbers and clamps to 1–12; `setTheme` ignores names that are not daisyUI themes; `updateText` ignores an element that has no text; `updateValue` ignores a dropdown value that none of its options has, and `updateOptions` moves the selection to the first option when the selected one is gone; `moveElement` and `removeElement` ignore a `uid` that is not on the canvas.
 8. **Derived data is a pure exported function and is never stored.** `selectCells(grid, canvasElements)` builds the cells. Components get them from `useCells()`, which selects `grid` and `canvasElements` separately and derives the cells with `useMemo`.
 9. **Stored state is flat.** `canvasElements` is one array for the whole canvas. Each element carries its `row` and `column`, and the order of two elements in the same cell is their relative order in the array.
 10. **Pure helpers are module-level functions above the factory** (`createElement`, `insertIntoCell`, `clampGridSize`), so actions stay short and the helpers need no store to reason about.
 11. **A store touches nothing outside itself; keeping the page in step with state is a component's job.** A store never reads or writes the DOM and never subscribes to itself. What has to match the state at all times is rendered, or synchronised in a `useEffect`, by a component that reads the store. [`DocumentTheme`](../../src/app/features/theme/document-theme/document-theme.tsx) writes `theme` to `<html data-theme>` in an effect, since React does not render `<html>`, and renders the `<link>` to the stylesheet holding every theme once `allThemesRequested` is set. `loadAllThemes` only sets that flag.
 12. **The store announces its own changes.** An announcement belongs to the user action, not to the state the action leaves behind: nothing is announced when the app starts in a theme. So it is made where the action is, not in an effect. Each factory takes an `announce(message)` function, and an action calls it after its `set`, so a drag and its keyboard alternative tell screen reader users the same thing. No component calls the announcer.
+13. **A store reaches a backend through a service its factory is given.** A service is a plain object made by a factory in `src/app/features/<feature>/services/`. It knows the addresses, and it turns what the backend answers into the feature's models after checking that the answer has the shape it expects. [`fact-service.ts`](../../src/app/features/fact/services/fact-service.ts) is the one there is. A service does not call `fetch`: its factory is given the HTTP client from [`src/app/shared/http/`](../../src/app/shared/http/http-client.ts), which is `fetch` wrapped in interceptors. What holds for every request is an interceptor and not a line repeated in each service: `timeout` gives a request a time limit, and `rejectHttpErrors` turns a response with a failing status into a thrown `HttpError`, which `fetch` by itself does not do. An action that waits for a service is the exception to rule 6. It calls `set` once before the wait and once after it, so that the wait is state (`status`) a component can render. Such an action also decides what a call during the wait means. `loadToday` and `loadRandom` ignore it, and `loadToday` ignores every call after its first, which is why `FactPanel` can ask for the first fact in an effect that React runs twice in development.
 
 ### How stores are tested
 
-A store is tested for real in a `*.spec.ts`: the spec calls the factory with a `vi.fn()` as `announce`, then calls actions and reads state through `store.getState()`. No spec needs a DOM, because no store touches one. A component test mounts the component under real stores, created with the state the test needs through the factories' options (`initial`, `declaredTheme`). See [the testing guide](../../.claude/guides/testing.md).
+A store is tested for real in a `*.spec.ts`: the spec calls the factory with a `vi.fn()` as `announce`, then calls actions and reads state through `store.getState()`. No spec needs a DOM, because no store touches one. A store that is given a service gets an object of `vi.fn()`s in its place, a service gets a `vi.fn()` in place of the HTTP client, and only the client's own spec replaces `fetch`: each layer is tested against a stand-in for the one below it, and no spec or component test sends a request. A component test mounts the component under real stores, created with the state the test needs through the factories' options (`initial`, `declaredTheme`). See [the testing guide](../../.claude/guides/testing.md).
 
 ## Consequences
 
@@ -63,6 +64,7 @@ A store is tested for real in a `*.spec.ts`: the spec calls the factory with a `
 - **Write protection is a convention.** A Zustand store object has `setState`, and anything that holds the object can call it. Rule 5 holds because components are only ever given the hook.
 - **State and actions share one object.** `BuilderState & BuilderActions` is what a selector sees, and the factory's `initial` option covers the state half only.
 - **One document at a time.** `main.tsx` provides one builder store for the whole app. A second canvas would need its own provider around its own part of the tree.
+- **A request is never cancelled.** A store outlives the component that asked, so there is nothing to cancel when a component unmounts, and a second call during a wait is ignored rather than replacing the first. A request that got no answer ends when the `timeout` interceptor aborts it, and until then the panel cannot load anything else.
 - **Nothing is persisted.** State is in memory and a reload resets it. Persistence would be added behind the store, where the factory is the seam, not in components.
 - **The cells are recomputed in full on every element or grid change**, once in each component that calls `useCells()`. Each run filters the whole element list once per cell. This is fine at the 12 × 12 cap and would need indexing if the cap is raised.
 - **Flat storage makes some results depend on history.** When the grid shrinks and two cells merge, the merged order follows the array, which reflects the order of earlier drops and moves.
