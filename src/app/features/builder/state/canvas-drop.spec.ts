@@ -1,7 +1,7 @@
 import { CanvasElement, TextCanvasElement } from '../models/canvas-element';
 import { GridCell } from '../models/grid-layout';
 import { PaletteItem } from '../models/palette-item';
-import { createBuilderStore, selectCells } from '../state/builder-store';
+import { selectCells } from './builder-store';
 import { resolveDrop } from './canvas-drop';
 
 describe('resolveDrop', () => {
@@ -170,64 +170,10 @@ describe('resolveDrop', () => {
     it('resolves a drop on an element the canvas no longer has to no drop', () => {
       expect(resolveDrop(divItem, element('gone', 0, 0), cells)).toBeNull();
     });
-  });
 
-  describe('applied to the store', () => {
-    function orderAfter(
-      active: CanvasElement | PaletteItem,
-      over: CanvasElement | GridCell,
-    ): string[][] {
-      const store = createBuilderStore({
-        announce: () => undefined,
-        initial: { grid: { rows: 2, columns: 2 }, canvasElements },
-      });
-      const drop = resolveDrop(active, over, cells);
-      if (drop?.kind === 'move') {
-        store.getState().moveElement(drop.uid, drop.cell, drop.index);
-      } else if (drop?.kind === 'add') {
-        store.getState().addElement(drop.item, drop.cell, drop.index);
-      }
-      const { grid, canvasElements: after } = store.getState();
-      return selectCells(grid, after).map((cell) =>
-        cell.elements.map((one) => (one.uid.length > 1 ? 'new' : one.uid)),
-      );
-    }
-
-    it('puts an element dropped on a later one right after the ones it passed', () => {
-      expect(orderAfter(a, c)).toEqual([['b', 'c', 'a'], [], [], ['x', 'y']]);
-    });
-
-    it('puts an element dropped on the one after it behind that one', () => {
-      expect(orderAfter(a, b)).toEqual([['b', 'a', 'c'], [], [], ['x', 'y']]);
-    });
-
-    it('puts an element dropped on an earlier one in front of it', () => {
-      expect(orderAfter(c, a)).toEqual([['c', 'a', 'b'], [], [], ['x', 'y']]);
-    });
-
-    it('puts an element dropped on its own cell last', () => {
-      expect(orderAfter(a, cellAt(0, 0))).toEqual([['b', 'c', 'a'], [], [], ['x', 'y']]);
-    });
-
-    it('leaves the order alone for an element dropped on itself', () => {
-      expect(orderAfter(b, b)).toEqual([['a', 'b', 'c'], [], [], ['x', 'y']]);
-    });
-
-    it('puts an element dropped on one in another cell in front of that one', () => {
-      expect(orderAfter(a, y)).toEqual([['b', 'c'], [], [], ['x', 'a', 'y']]);
-    });
-
-    it('puts a palette item dropped on a cell after the elements the cell holds', () => {
-      expect(orderAfter(divItem, cellAt(1, 1))).toEqual([
-        ['a', 'b', 'c'],
-        [],
-        [],
-        ['x', 'y', 'new'],
-      ]);
-    });
-
-    it('puts a palette item dropped on an element in front of it', () => {
-      expect(orderAfter(divItem, b)).toEqual([['a', 'new', 'b', 'c'], [], [], ['x', 'y']]);
+    it('resolves a drop of an element the canvas no longer has to no drop', () => {
+      expect(resolveDrop(element('gone', 0, 0), cellAt(0, 0), cells)).toBeNull();
+      expect(resolveDrop(element('gone', 0, 0), b, cells)).toBeNull();
     });
   });
 });

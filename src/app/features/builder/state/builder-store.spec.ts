@@ -1,5 +1,5 @@
 import { Announce } from '../../../shared/announcer/announcer';
-import { TextCanvasElement } from '../models/canvas-element';
+import { CanvasElement, TextCanvasElement } from '../models/canvas-element';
 import { GridCell, MAX_GRID_SIZE, MIN_GRID_SIZE } from '../models/grid-layout';
 import { ElementType, PaletteItem } from '../models/palette-item';
 import {
@@ -8,6 +8,7 @@ import {
   DEFAULT_ELEMENT_TEXT,
   selectCells,
 } from './builder-store';
+import { Dragged, DropTarget } from './canvas-drop';
 
 describe('BuilderStore', () => {
   const origin = { row: 0, column: 0 };
@@ -650,6 +651,319 @@ describe('BuilderStore', () => {
       expect(store.getState().canvasElements.length).toBe(3);
       expect(uidsIn(store, 0, 0)).toEqual([a, b]);
       expect(uidsIn(store, 0, 1)).toEqual([c]);
+    });
+  });
+
+  describe('dropElement', () => {
+    const divItem: PaletteItem = { uid: 'palette-div', type: 'div', label: 'Div' };
+    const spanItem: PaletteItem = { uid: 'palette-span', type: 'span', label: 'Span' };
+
+    function element(uid: string, row: number, column: number): TextCanvasElement {
+      return { uid, type: 'div', paletteUid: divItem.uid, text: 'enter text', row, column };
+    }
+
+    const a = element('a', 0, 0);
+    const b = element('b', 0, 0);
+    const c = element('c', 0, 0);
+    const x = element('x', 1, 1);
+    const y = element('y', 1, 1);
+    const gone = element('gone', 0, 0);
+    const canvasElements: CanvasElement[] = [a, x, b, y, c];
+
+    function createDropStore(announce: Announce = () => undefined): BuilderStore {
+      return createBuilderStore({
+        announce,
+        initial: { grid: { rows: 2, columns: 2 }, canvasElements },
+      });
+    }
+
+    function cellAt(store: BuilderStore, row: number, column: number): GridCell {
+      const cell = cellsOf(store).find(
+        (candidate) => candidate.row === row && candidate.column === column,
+      );
+      if (!cell) throw new Error(`No cell at row ${row}, column ${column}`);
+      return cell;
+    }
+
+    function order(store: BuilderStore): string[][] {
+      return cellsOf(store).map((cell) =>
+        cell.elements.map((one) => (one.uid.length > 1 ? 'new' : one.uid)),
+      );
+    }
+
+    function orderAfter(
+      dragged: Dragged,
+      target: (store: BuilderStore) => DropTarget | undefined,
+    ): string[][] {
+      const store = createDropStore();
+      store.getState().dropElement(dragged, target(store));
+      return order(store);
+    }
+
+    describe('an element dragged within its cell', () => {
+      it('goes right after the ones it passed when dropped on a later one', () => {
+        expect(orderAfter(a, () => c)).toEqual([['b', 'c', 'a'], [], [], ['x', 'y']]);
+      });
+
+      it('goes behind the one after it when dropped on that one', () => {
+        expect(orderAfter(a, () => b)).toEqual([['b', 'a', 'c'], [], [], ['x', 'y']]);
+      });
+
+      it('goes in front of an earlier one it is dropped on', () => {
+        expect(orderAfter(c, () => a)).toEqual([['c', 'a', 'b'], [], [], ['x', 'y']]);
+      });
+
+      it('goes last when dropped on its own cell', () => {
+        expect(orderAfter(a, (store) => cellAt(store, 0, 0))).toEqual([
+          ['b', 'c', 'a'],
+          [],
+          [],
+          ['x', 'y'],
+        ]);
+      });
+
+      it('keeps its place when dropped on itself', () => {
+        expect(orderAfter(b, () => b)).toEqual([['a', 'b', 'c'], [], [], ['x', 'y']]);
+      });
+    });
+
+    describe('an element dragged into another cell', () => {
+      it('goes in front of the element it is dropped on', () => {
+        expect(orderAfter(a, () => y)).toEqual([['b', 'c'], [], [], ['x', 'a', 'y']]);
+      });
+
+      it('goes to the end of the cell it is dropped on', () => {
+        expect(orderAfter(a, (store) => cellAt(store, 1, 1))).toEqual([
+          ['b', 'c'],
+          [],
+          [],
+          ['x', 'y', 'a'],
+        ]);
+      });
+
+      it('becomes the first element of an empty cell', () => {
+        expect(orderAfter(x, (store) => cellAt(store, 1, 0))).toEqual([
+          ['a', 'b', 'c'],
+          [],
+          ['x'],
+          ['y'],
+        ]);
+      });
+
+      it('keeps what it is', () => {
+        const store = createDropStore();
+
+        store.getState().dropElement(a, cellAt(store, 0, 1));
+
+        expect(store.getState().canvasElements).toContainEqual({ ...a, row: 0, column: 1 });
+        expect(store.getState().canvasElements.length).toBe(canvasElements.length);
+      });
+    });
+
+    describe('a palette item', () => {
+      it('goes after the elements of the cell it is dropped on', () => {
+        expect(orderAfter(divItem, (store) => cellAt(store, 1, 1))).toEqual([
+          ['a', 'b', 'c'],
+          [],
+          [],
+          ['x', 'y', 'new'],
+        ]);
+      });
+
+      it('goes in front of the element it is dropped on', () => {
+        expect(orderAfter(divItem, () => b)).toEqual([['a', 'new', 'b', 'c'], [], [], ['x', 'y']]);
+      });
+
+      it('becomes an element of its type, linked to it', () => {
+        const store = createDropStore();
+
+        store.getState().dropElement(spanItem, cellAt(store, 0, 1));
+
+        expect(cellAt(store, 0, 1).elements).toEqual([
+          expect.objectContaining({ type: 'span', paletteUid: spanItem.uid, row: 0, column: 1 }),
+        ]);
+      });
+    });
+
+    describe('a target the drag saw earlier', () => {
+      it('is a cell whose end is counted on the canvas as it is now', () => {
+        const stale: GridCell = { row: 1, column: 1, elements: [] };
+
+        expect(orderAfter(divItem, () => stale)).toEqual([
+          ['a', 'b', 'c'],
+          [],
+          [],
+          ['x', 'y', 'new'],
+        ]);
+      });
+
+      it('is an element found in the cell it is in now', () => {
+        const stale = element(y.uid, 0, 1);
+
+        expect(orderAfter(a, () => stale)).toEqual([['b', 'c'], [], [], ['x', 'a', 'y']]);
+      });
+
+      it('is the same cell for one drop after another, each going to the end', () => {
+        const store = createDropStore();
+        const empty = cellAt(store, 0, 1);
+
+        store.getState().dropElement(divItem, empty);
+        store.getState().dropElement(a, empty);
+        store.getState().dropElement(divItem, empty);
+
+        expect(order(store)).toEqual([['b', 'c'], ['new', 'a', 'new'], [], ['x', 'y']]);
+      });
+    });
+
+    describe('what it returns', () => {
+      it.each([
+        { name: 'a palette item dropped on a cell', dragged: divItem, row: 0, column: 1 },
+        { name: 'an element dropped on another cell', dragged: a, row: 1, column: 1 },
+        { name: 'an element dropped on its own cell', dragged: a, row: 0, column: 0 },
+      ])('is true for $name', ({ dragged, row, column }) => {
+        const store = createDropStore();
+
+        expect(store.getState().dropElement(dragged, cellAt(store, row, column))).toBe(true);
+      });
+
+      it.each([
+        { name: 'a palette item dropped on an element', dragged: divItem, target: b },
+        { name: 'an element dropped on another element', dragged: a, target: y },
+        { name: 'an element dropped on itself', dragged: b, target: b },
+      ])('is true for $name', ({ dragged, target }) => {
+        const store = createDropStore();
+
+        expect(store.getState().dropElement(dragged, target)).toBe(true);
+      });
+    });
+
+    describe('no drop', () => {
+      const corner: GridCell = { row: 0, column: 0, elements: [] };
+      const outside: GridCell = { row: 5, column: 5, elements: [] };
+      const refused: { name: string; dragged?: Dragged; target?: DropTarget }[] = [
+        { name: 'a palette item released over the palette', dragged: divItem, target: spanItem },
+        { name: 'an element released over the palette', dragged: a, target: spanItem },
+        { name: 'a palette item released over nothing', dragged: divItem },
+        { name: 'an element released over nothing', dragged: a },
+        { name: 'a drag that carried nothing', target: corner },
+        {
+          name: 'a palette item released over a cell the grid no longer has',
+          dragged: divItem,
+          target: outside,
+        },
+        {
+          name: 'an element released over a cell the grid no longer has',
+          dragged: a,
+          target: outside,
+        },
+        {
+          name: 'a palette item released over an element no longer on the canvas',
+          dragged: divItem,
+          target: gone,
+        },
+        {
+          name: 'an element no longer on the canvas released over a cell',
+          dragged: gone,
+          target: corner,
+        },
+        {
+          name: 'an element no longer on the canvas released over an element',
+          dragged: gone,
+          target: a,
+        },
+      ];
+
+      it.each(refused)('returns false for $name', ({ dragged, target }) => {
+        const store = createDropStore();
+
+        expect(store.getState().dropElement(dragged, target)).toBe(false);
+      });
+
+      it.each(refused)('leaves the canvas as it was for $name', ({ dragged, target }) => {
+        const store = createDropStore();
+
+        store.getState().dropElement(dragged, target);
+
+        expect(store.getState().canvasElements).toBe(canvasElements);
+      });
+
+      it.each(refused)('stays silent for $name', ({ dragged, target }) => {
+        const announce = vi.fn<Announce>();
+        const store = createDropStore(announce);
+
+        store.getState().dropElement(dragged, target);
+
+        expect(announce).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('state changes', () => {
+      it.each([
+        { name: 'a palette item', dragged: divItem },
+        { name: 'an element', dragged: a },
+      ])('changes the state once for a drop of $name', ({ dragged }) => {
+        const store = createDropStore();
+        const changed = vi.fn();
+        store.subscribe(changed);
+
+        store.getState().dropElement(dragged, y);
+
+        expect(changed).toHaveBeenCalledTimes(1);
+      });
+
+      it('does not change the state when there is no drop', () => {
+        const store = createDropStore();
+        const changed = vi.fn();
+        store.subscribe(changed);
+
+        store.getState().dropElement(a, undefined);
+
+        expect(changed).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('announcements', () => {
+      function announced(act: (store: BuilderStore) => void): string[] {
+        const announce = vi.fn<Announce>();
+        act(createDropStore(announce));
+        return announce.mock.calls.map(([message]) => message);
+      }
+
+      it('announces a dropped palette item in the words of one added from its menu', () => {
+        const dropped = announced((store) =>
+          store.getState().dropElement(divItem, cellAt(store, 1, 1)),
+        );
+        const added = announced((store) => {
+          const cell = cellAt(store, 1, 1);
+          store.getState().addElement(divItem, cell, cell.elements.length);
+        });
+
+        expect(dropped).toEqual(['Div added to Row 2, column 2.']);
+        expect(dropped).toEqual(added);
+      });
+
+      it('announces an element dropped on another cell in the words of one moved from its menu', () => {
+        const dropped = announced((store) => store.getState().dropElement(a, cellAt(store, 1, 1)));
+        const moved = announced((store) => {
+          const cell = cellAt(store, 1, 1);
+          store.getState().moveElement(a.uid, cell, cell.elements.length);
+        });
+
+        expect(dropped).toEqual(['Block text moved to Row 2, column 2.']);
+        expect(dropped).toEqual(moved);
+      });
+
+      it('announces an element dropped within its cell in the words of one moved from its menu', () => {
+        const dropped = announced((store) => store.getState().dropElement(a, b));
+        const moved = announced((store) => store.getState().moveElement(a.uid, origin, 1));
+
+        expect(dropped).toEqual(['Block text moved to position 2 of 3.']);
+        expect(dropped).toEqual(moved);
+      });
+
+      it('stays silent when an element is dropped on itself', () => {
+        expect(announced((store) => store.getState().dropElement(b, b))).toEqual([]);
+      });
     });
   });
 

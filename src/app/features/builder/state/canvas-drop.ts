@@ -5,7 +5,11 @@ import { PaletteItem } from '../models/palette-item';
 /** What a drag carries: a palette item, or an element already on the canvas. */
 export type Dragged = PaletteItem | CanvasElement;
 
-/** What a drag is released over. A palette item is never a target, so it resolves to no drop. */
+/**
+ * What a drag is released over. A palette item is never a target, so it resolves to no drop. A cell
+ * or an element was captured when it last rendered, so only its identity is read: the row and
+ * column of a cell, the uid of an element.
+ */
 export type DropTarget = GridCell | CanvasElement | PaletteItem;
 
 export type Drop =
@@ -22,9 +26,10 @@ const holds = (cell: GridCell, uid: string): boolean =>
   cell.elements.some((element) => element.uid === uid);
 
 /**
- * Turns the two ends of a finished drag into the store call to make, or `null` when it was released
- * over nothing that takes elements. Over an element the drop takes that element's place in its
- * cell; over the cell itself it goes to the end.
+ * Turns the two ends of a finished drag into the add or the move to apply, or `null` when there is
+ * none: it was released over nothing that takes elements, or one of its ends is no longer on the
+ * canvas. Over an element the drop takes that element's place in its cell; over the cell itself it
+ * goes to the end. `cells` are the current ones.
  */
 export function resolveDrop(
   active: Dragged | null | undefined,
@@ -32,6 +37,9 @@ export function resolveDrop(
   cells: GridCell[],
 ): Drop | null {
   if (!active || !over) {
+    return null;
+  }
+  if (isCanvasElement(active) && !cells.some((candidate) => holds(candidate, active.uid))) {
     return null;
   }
 

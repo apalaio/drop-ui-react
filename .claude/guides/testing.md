@@ -48,7 +48,7 @@ When in doubt: if you would assert on a DOM node or a user interaction in one co
 
 **A store, the announcer or a pure function never gets a `*.test.tsx`.** There is nothing to render, so the browser runner has nothing to assert. Unit-test its logic in a `*.spec.ts`; its effects in a real browser are proved by the `*.test.tsx` of the **component that consumes it**.
 
-**A component has no class to instantiate**, so a spec cannot call one of its handlers. A handler is covered by one of three things: a spec of the pure function it delegates to (`BuilderShell`'s drop → `resolveDrop`), a component test asserting a callback prop, or a component test reading the store.
+**A component has no class to instantiate**, so a spec cannot call one of its handlers. A handler is covered by one of three things: a spec of the store action or pure function it delegates to (`BuilderShell`'s drop → `dropElement`, which resolves it with `resolveDrop`), a component test asserting a callback prop, or a component test reading the store.
 
 ### When a component needs both
 
@@ -300,7 +300,7 @@ Component tests cover the **happy flow** and every branch of the component. Guar
 - Every event handler prop (`onClick`, `onChange`, `onSubmit`, …): fire it and assert the effect.
 - Every callback prop the component calls: assert it fired, and that it did not when it should not.
 
-If a branch genuinely belongs in a `*.spec.ts` (a store guard, a pure function's edge case), cover it there instead and don't duplicate it here, but it must be covered _somewhere_, not skipped. Drag & drop is the standing example: what a drop resolves to is covered in `canvas-drop.spec.ts`, the real drag in a `*.e2e.ts`, and no component test drags anything.
+If a branch genuinely belongs in a `*.spec.ts` (a store guard, a pure function's edge case), cover it there instead and don't duplicate it here, but it must be covered _somewhere_, not skipped. Drag & drop is the standing example: what a drop resolves to is covered in `canvas-drop.spec.ts`, what it does to the canvas in the `dropElement` block of `builder-store.spec.ts`, the real drag in a `*.e2e.ts`, and no component test drags anything.
 
 **DO**
 

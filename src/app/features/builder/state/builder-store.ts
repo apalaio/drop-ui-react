@@ -14,6 +14,7 @@ import {
   MIN_GRID_SIZE,
 } from '../models/grid-layout';
 import { ELEMENT_LABELS, PaletteItem } from '../models/palette-item';
+import { Dragged, DropTarget, resolveDrop } from './canvas-drop';
 
 export interface BuilderState {
   paletteItems: PaletteItem[];
@@ -29,6 +30,8 @@ export interface BuilderActions {
   updateValue(uid: string, value: string): void;
   removeElement(uid: string): void;
   moveElement(uid: string, cell: CellPosition, index: number): void;
+  /** Applies a finished drag and tells whether it was a drop. */
+  dropElement(dragged: Dragged | undefined, target: DropTarget | undefined): boolean;
 }
 
 export type BuilderStore = StoreApi<BuilderState & BuilderActions>;
@@ -205,6 +208,21 @@ export function createBuilderStore({
         const count = get().canvasElements.filter((other) => isInCell(other, cell)).length;
         announce(`${label} moved to position ${position + 1} of ${count}.`);
       }
+    },
+    /*
+     * Resolved here and not by the caller, which would have to subscribe to the cells to know them
+     * when the drag ends. Applied through the actions the keyboard paths call, so a drop changes
+     * and announces what they do.
+     */
+    dropElement(dragged, target) {
+      const { grid, canvasElements, addElement, moveElement } = get();
+      const drop = resolveDrop(dragged, target, selectCells(grid, canvasElements));
+      if (drop?.kind === 'add') {
+        addElement(drop.item, drop.cell, drop.index);
+      } else if (drop?.kind === 'move') {
+        moveElement(drop.uid, drop.cell, drop.index);
+      }
+      return drop !== null;
     },
   }));
 }

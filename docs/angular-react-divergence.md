@@ -14,7 +14,7 @@ Paths that start with `drop-ui/` are in the Angular repository. All others are i
 
 - **Behaviour.** The six Playwright files in `e2e/` are identical in both repositories. They are the contract that both apps behave the same, so an assertion changes in both `e2e/` folders or in neither. Only `playwright.config.ts` differs, in the port and in the command that starts the dev server. What the six files do not assert can still differ.
 - **The element model.** The four files in `src/app/features/builder/models/` are identical. [ADR 0002](adr/0002-canvas-elements-as-a-discriminated-union.md) was decided for the Angular app on 2026-10-05, before the port, and holds here unchanged. Only its two rules about rendering (7 and 8) are written for TSX in this repository.
-- **What the stores hold and do.** The same state fields, the same actions with the same arguments and guards, and the same wording of every announcement.
+- **What the stores hold and do.** The same state fields, the same actions with the same arguments and guards, and the same wording of every announcement. The React builder store has one action more, `dropElement`, since [2026-10-08](#2026-10-08-the-react-store-applies-a-drop).
 - **Styling.** Tailwind 4 and daisyUI 5. In both, daisyUI's prebuilt theme stylesheets are copied as assets, `index.html` names and links the starting theme, and `themes.css` is loaded when the theme list is first opened.
 - **Folder layout.** `src/app/features/<feature>/` with `models/`, `state/` and one folder per component, and `src/app/shared/`.
 
@@ -84,7 +84,7 @@ Both apps move the keyboard focus after an element is moved or deleted from its 
 | --------------------------------- | ------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Library                           | `@angular/cdk/drag-drop`                                                                                           | `@dnd-kit/core` and `@dnd-kit/sortable`                                                                                                                                         |
 | Wiring                            | Directives: `cdkDropList` on each cell and on the palette, `cdkDrag` on each item, `CdkDropListGroup` on the shell | One `DndContext` in `BuilderShell`, and hooks: `useDraggable` (palette item), `useSortable` (dropped element), `useDroppable` (cell)                                            |
-| Who handles a drop                | `Canvas.drop`. The CDK supplies the target cell and the index                                                      | `BuilderShell`. dnd-kit supplies what was dragged and what it was over, and [`resolveDrop`](../src/app/features/builder/canvas/canvas-drop.ts) works out the cell and the index |
+| Who handles a drop                | `Canvas.drop`. The CDK supplies the target cell and the index                                                      | `BuilderShell`. dnd-kit supplies what was dragged and what it was over, and [`resolveDrop`](../src/app/features/builder/state/canvas-drop.ts) works out the cell and the index |
 | The shell                         | An empty class                                                                                                     | Owns the drag context, the sensor, the drop handler and the palette's drag overlay                                                                                              |
 | The copy that follows the pointer | Built by the CDK                                                                                                   | A `DragOverlay` we render: the shell's for a palette item, each `DroppedElement`'s own for itself                                                                               |
 | Visual feedback                   | Global CSS on the CDK's classes (`.cdk-drag-placeholder`, `.cdk-drop-list-receiving`, …)                           | Classes chosen in the component from the hook's state (`DROP_ZONE_STATE` in `canvas.tsx`)                                                                                       |
@@ -92,11 +92,13 @@ Both apps move the keyboard focus after an element is moved or deleted from its 
 | Controls inside a draggable       | `(mousedown)` and `(touchstart)` stop propagation                                                                  | `noDrag` stops `pointerdown`. A menu popup needs it too, because React events cross a portal                                                                                    |
 | The palette                       | A drop list that accepts nothing                                                                                   | Draggable only. An item released over no cell slides back                                                                                                                       |
 
+Since [2026-10-08](#2026-10-08-the-react-store-applies-a-drop) the React shell passes a drop on to the builder store, which calls `resolveDrop`. That entry replaces the rows "Who handles a drop" and "The shell" for React, and `canvas-drop.ts` and its spec are in `state/` since then.
+
 **Why.** The CDK's drag and drop is a set of directives that owns sorting, the drop index and the preview. dnd-kit provides sensors, collision detection and hooks, and leaves the rest to the app.
 
 **What follows.**
 
-- The drop index is our own logic in React, with a spec of its own: [`canvas-drop.spec.ts`](../src/app/features/builder/canvas/canvas-drop.spec.ts). Angular's `canvas.spec.ts` instead calls `Canvas.drop` with a fake CDK event.
+- The drop index is our own logic in React, with a spec of its own: [`canvas-drop.spec.ts`](../src/app/features/builder/state/canvas-drop.spec.ts). Angular's `canvas.spec.ts` instead calls `Canvas.drop` with a fake CDK event.
 - React silences dnd-kit's own screen reader messages (`SILENT` in [`builder-shell.tsx`](../src/app/features/builder/builder-shell/builder-shell.tsx)), so that only the store announces a drop.
 
 ### Menus
@@ -214,3 +216,21 @@ At the port, the React theme store did what the Angular one does: it wrote the t
 - The first fact is loaded without an announcement. An announcement would replace the one an e2e test is waiting for.
 - Each page an e2e test opens in the React app sends one request to the API. No assertion depends on the answer. The Angular e2e run sends none.
 - Rule 13 of ADR 0001 exists in this repository only.
+
+## 2026-10-08: the React store applies a drop
+
+At the port, the React shell worked out where a drop lands and then called `addElement` or `moveElement`. Since this date the builder store does both, in an action the Angular store does not have.
+
+**React.** `BuilderShell` hands what dnd-kit reports at the end of a drag, the data of what was dragged and of what it was released over, to the store's `dropElement(dragged, target)`. The action derives the cells from the state of that moment, has [`resolveDrop`](../src/app/features/builder/state/canvas-drop.ts) work out the cell and the index, applies the result through `addElement` or `moveElement`, and returns whether there was a drop. The shell needs that answer at once: it decides whether the copy of a palette item slides back to the palette. The shell selects nothing from the store but this action.
+
+**Angular.** Unchanged. `Canvas.drop` gets the cell and the index from the CDK and calls `addElement` or `moveElement`. The shell is an empty class.
+
+**Why.** To resolve a drop itself, the React shell needed the cells, and the only way a component gets them is `useCells()`, which subscribes it. The shell is the root of the app and nothing under it is memoised, so every change to the elements, each keystroke in a dropped text input included, rendered the whole tree again. A React component is given the selector hook and nothing that reads the store when an event fires ([ADR 0001](adr/0001-feature-state-in-zustand-stores.md), rule 5), so what an event needs from the state of that moment has to be an action. Angular has no such problem to solve. The CDK supplies the cell and the index, and a signal read inside an event handler subscribes nothing.
+
+**What follows.**
+
+- The React builder store has an action the Angular one lacks. `addElement` and `moveElement` are the same in both, and the keyboard paths call them directly in both.
+- What a drop does is unchanged, so the two apps still behave the same and the six files in `e2e/` are untouched.
+- `canvas-drop.ts` and its spec moved from `canvas/` to `state/`, next to their one caller. [`canvas-drop.spec.ts`](../src/app/features/builder/state/canvas-drop.spec.ts) covers what a drag resolves to, and the `dropElement` block of [`builder-store.spec.ts`](../src/app/features/builder/state/builder-store.spec.ts) covers what the drop does to the canvas and what it announces. Angular's `canvas.spec.ts` covers both by calling `Canvas.drop`.
+- `resolveDrop` reads only the identity of what a drag was released over: the row and column of a cell, the `uid` of an element. dnd-kit hands back the data a droppable registered at its last render. The CDK computes its index when the drop happens.
+- Rules 3, 6, 7, 10 and 12 of ADR 0001 mention `dropElement` in this repository only.

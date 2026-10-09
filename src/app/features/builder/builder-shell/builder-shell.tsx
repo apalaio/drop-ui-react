@@ -15,12 +15,12 @@ import { JSX, useRef, useState } from 'react';
 import { FactPanel } from '../../fact/fact-panel/fact-panel';
 import { ThemePicker } from '../../theme/theme-picker/theme-picker';
 import { Canvas } from '../canvas/canvas';
-import { Dragged, DropTarget, isCanvasElement, resolveDrop } from '../canvas/canvas-drop';
 import { usePrefersReducedMotion } from '../drag-drop/drag-drop';
 import { ElementPalette } from '../element-palette/element-palette';
 import { LayoutPanel } from '../layout-panel/layout-panel';
 import { PaletteItem } from '../models/palette-item';
-import { useBuilderStore, useCells } from '../state/builder-store';
+import { useBuilderStore } from '../state/builder-store';
+import { Dragged, DropTarget, isCanvasElement } from '../state/canvas-drop';
 import './builder-shell.css';
 
 // A press that stays put is a click, which opens the menu of a palette item or of an element.
@@ -51,9 +51,7 @@ function PaletteItemCopy({ item }: { item: PaletteItem }): JSX.Element {
 }
 
 export function BuilderShell(): JSX.Element {
-  const cells = useCells();
-  const addElement = useBuilderStore((state) => state.addElement);
-  const moveElement = useBuilderStore((state) => state.moveElement);
+  const dropElement = useBuilderStore((state) => state.dropElement);
   const reducedMotion = usePrefersReducedMotion();
   const sensors = useSensors(useSensor(PointerSensor, POINTER_SENSOR));
 
@@ -66,17 +64,10 @@ export function BuilderShell(): JSX.Element {
   }
 
   function endDrag({ active, over }: DragEndEvent): void {
-    const drop = resolveDrop(
+    dropAccepted.current = dropElement(
       active.data.current as Dragged | undefined,
       over?.data.current as DropTarget | undefined,
-      cells,
     );
-    dropAccepted.current = drop !== null;
-    if (drop?.kind === 'add') {
-      addElement(drop.item, drop.cell, drop.index);
-    } else if (drop?.kind === 'move') {
-      moveElement(drop.uid, drop.cell, drop.index);
-    }
   }
 
   /*
