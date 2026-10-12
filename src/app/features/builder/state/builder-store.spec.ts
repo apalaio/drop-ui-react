@@ -1,5 +1,6 @@
 import { Announce } from '../../../shared/announcer/announcer';
 import { CanvasElement, TextCanvasElement } from '../models/canvas-element';
+import { GeneratedElement } from '../models/generated-element';
 import { GridCell, MAX_GRID_SIZE, MIN_GRID_SIZE } from '../models/grid-layout';
 import { ElementType, PaletteItem } from '../models/palette-item';
 import {
@@ -963,6 +964,325 @@ describe('BuilderStore', () => {
 
       it('stays silent when an element is dropped on itself', () => {
         expect(announced((store) => store.getState().dropElement(b, b))).toEqual([]);
+      });
+    });
+  });
+
+  describe('loadGeneratedElements', () => {
+    const options = [
+      { text: 'Small', value: 's' },
+      { text: 'Large', value: 'l' },
+    ];
+    const generated: GeneratedElement[] = [
+      { type: 'div', text: 'Sign up' },
+      { type: 'text-input', text: 'Your name' },
+      { type: 'dropdown', options },
+      { type: 'datepicker' },
+      { type: 'textfield', text: 'About you' },
+      { type: 'span', text: 'All fields are optional' },
+    ];
+
+    function paletteUidOf(store: BuilderStore, type: ElementType): string {
+      return store.getState().paletteItems.find((item) => item.type === type)!.uid;
+    }
+
+    it.each(['div', 'span'] as const)('creates a %s showing the generated text', (type) => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements([{ type, text: 'Hello' }]);
+
+      expect(store.getState().canvasElements).toEqual([
+        {
+          uid: expect.any(String),
+          paletteUid: paletteUidOf(store, type),
+          type,
+          text: 'Hello',
+          row: 0,
+          column: 0,
+        },
+      ]);
+    });
+
+    it.each(['text-input', 'textfield'] as const)(
+      'creates a %s with the generated text as its placeholder and an empty value',
+      (type) => {
+        const store = createStore();
+
+        store.getState().loadGeneratedElements([{ type, text: 'Your name' }]);
+
+        expect(store.getState().canvasElements).toEqual([
+          {
+            uid: expect.any(String),
+            paletteUid: paletteUidOf(store, type),
+            type,
+            text: 'Your name',
+            value: '',
+            row: 0,
+            column: 0,
+          },
+        ]);
+      },
+    );
+
+    it('creates a datepicker with an empty value and neither text nor options', () => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements([{ type: 'datepicker' }]);
+
+      expect(store.getState().canvasElements).toEqual([
+        {
+          uid: expect.any(String),
+          paletteUid: paletteUidOf(store, 'datepicker'),
+          type: 'datepicker',
+          value: '',
+          row: 0,
+          column: 0,
+        },
+      ]);
+    });
+
+    it('creates a dropdown with the generated options and no text', () => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements([{ type: 'dropdown', options }]);
+
+      expect(store.getState().canvasElements[0]).toMatchObject({ type: 'dropdown', options });
+      expect(store.getState().canvasElements[0]).not.toHaveProperty('text');
+    });
+
+    it('selects the first option of a generated dropdown', () => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements([{ type: 'dropdown', options }]);
+
+      expect(store.getState().canvasElements[0]).toMatchObject({ value: 's' });
+    });
+
+    it('leaves a dropdown generated without options with an empty value', () => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements([{ type: 'dropdown', options: [] }]);
+
+      expect(store.getState().canvasElements[0]).toMatchObject({ options: [], value: '' });
+    });
+
+    it('keeps options that share a value, selecting that value', () => {
+      const store = createStore();
+      const twins = [
+        { text: 'One', value: 'same' },
+        { text: 'Other', value: 'same' },
+      ];
+
+      store.getState().loadGeneratedElements([{ type: 'dropdown', options: twins }]);
+
+      expect(store.getState().canvasElements[0]).toMatchObject({ options: twins, value: 'same' });
+    });
+
+    it('keeps an empty generated text as it is', () => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements([
+        { type: 'div', text: '' },
+        { type: 'text-input', text: '' },
+      ]);
+
+      expect(store.getState().canvasElements).toEqual([
+        expect.objectContaining({ type: 'div', text: '' }),
+        expect.objectContaining({ type: 'text-input', text: '' }),
+      ]);
+    });
+
+    it('puts the elements in the single cell in the order given', () => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements(generated);
+
+      expect(cellsOf(store).map((cell) => cell.elements.map((element) => element.type))).toEqual([
+        ['div', 'text-input', 'dropdown', 'datepicker', 'textfield', 'span'],
+      ]);
+    });
+
+    it('links each element to the palette item of its type', () => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements(generated);
+
+      expect(store.getState().canvasElements.map((element) => element.paletteUid)).toEqual(
+        generated.map(({ type }) => paletteUidOf(store, type)),
+      );
+    });
+
+    it('gives every element a uid of its own, also for two of the same type', () => {
+      const store = createStore();
+
+      store.getState().loadGeneratedElements([...generated, ...generated]);
+
+      const uids = store.getState().canvasElements.map((element) => element.uid);
+      const paletteUids = store.getState().paletteItems.map((item) => item.uid);
+      expect(new Set(uids).size).toBe(generated.length * 2);
+      expect(uids.filter((uid) => paletteUids.includes(uid))).toEqual([]);
+    });
+
+    it('replaces the elements already on the canvas', () => {
+      const store = createStore();
+      const [before, alsoBefore] = [addTo(store, 0, 0), addTo(store, 0, 0)];
+
+      store.getState().loadGeneratedElements([{ type: 'span', text: 'Hello' }]);
+
+      const uids = uidsIn(store, 0, 0);
+      expect(store.getState().canvasElements).toEqual([
+        expect.objectContaining({ type: 'span', text: 'Hello' }),
+      ]);
+      expect(uids).not.toContain(before);
+      expect(uids).not.toContain(alsoBefore);
+    });
+
+    it('replaces the elements of an earlier generation', () => {
+      const store = createStore();
+      store.getState().loadGeneratedElements(generated);
+
+      store.getState().loadGeneratedElements([{ type: 'datepicker' }]);
+
+      expect(store.getState().canvasElements.map((element) => element.type)).toEqual([
+        'datepicker',
+      ]);
+    });
+
+    it('resets a larger grid to one cell, holding every generated element', () => {
+      const store = createStore();
+      store.getState().setGridSize('rows', 3);
+      store.getState().setGridSize('columns', 2);
+      addTo(store, 2, 1);
+
+      store.getState().loadGeneratedElements(generated);
+
+      expect(store.getState().grid).toEqual({ rows: 1, columns: 1 });
+      expect(cellsOf(store).length).toBe(1);
+      expect(uidsIn(store, 0, 0).length).toBe(generated.length);
+    });
+
+    it('clears the canvas and resets the grid for an empty list', () => {
+      const store = createStore();
+      store.getState().setGridSize('columns', 2);
+      addTo(store, 0, 1);
+
+      store.getState().loadGeneratedElements([]);
+
+      expect(store.getState().grid).toEqual({ rows: 1, columns: 1 });
+      expect(store.getState().canvasElements).toEqual([]);
+    });
+
+    it('leaves the palette as it was', () => {
+      const store = createStore();
+      const before = store.getState().paletteItems;
+
+      store.getState().loadGeneratedElements(generated);
+
+      expect(store.getState().paletteItems).toBe(before);
+    });
+
+    it('lets the grid grow again afterwards, keeping the elements in the first cell', () => {
+      const store = createStore();
+      store.getState().loadGeneratedElements(generated);
+
+      store.getState().setGridSize('columns', 2);
+
+      expect(cellsOf(store).map((cell) => cell.elements.length)).toEqual([generated.length, 0]);
+    });
+
+    it('lets a generated dropdown have another of its options selected', () => {
+      const store = createStore();
+      store.getState().loadGeneratedElements([{ type: 'dropdown', options }]);
+      const [{ uid }] = store.getState().canvasElements;
+
+      store.getState().updateValue(uid, 'l');
+
+      expect(store.getState().canvasElements[0]).toMatchObject({ value: 'l' });
+    });
+
+    it('changes the state once', () => {
+      const store = createStore();
+      store.getState().setGridSize('rows', 2);
+      const changed = vi.fn();
+      store.subscribe(changed);
+
+      store.getState().loadGeneratedElements(generated);
+
+      expect(changed).toHaveBeenCalledTimes(1);
+    });
+
+    describe('with a palette that lacks a generated type', () => {
+      const paletteItems: PaletteItem[] = [
+        { uid: 'palette-div', type: 'div', label: 'Div' },
+        { uid: 'palette-dropdown', type: 'dropdown', label: 'Dropdown' },
+      ];
+
+      it('creates only the elements whose type the palette offers, in order', () => {
+        const store = createBuilderStore({ announce: () => undefined, initial: { paletteItems } });
+
+        store.getState().loadGeneratedElements(generated);
+
+        expect(store.getState().canvasElements).toEqual([
+          expect.objectContaining({ type: 'div', paletteUid: 'palette-div' }),
+          expect.objectContaining({ type: 'dropdown', paletteUid: 'palette-dropdown' }),
+        ]);
+      });
+
+      it('announces the number of elements it created', () => {
+        const announce = vi.fn<Announce>();
+        const store = createBuilderStore({ announce, initial: { paletteItems } });
+
+        store.getState().loadGeneratedElements(generated);
+
+        expect(announce).toHaveBeenLastCalledWith('2 elements generated.');
+      });
+
+      it('still clears the canvas when it offers none of the generated types', () => {
+        const announce = vi.fn<Announce>();
+        const store = createBuilderStore({ announce, initial: { paletteItems } });
+        store.getState().addElement(paletteItems[0], origin, 0);
+
+        store.getState().loadGeneratedElements([{ type: 'datepicker' }]);
+
+        expect(store.getState().canvasElements).toEqual([]);
+        expect(announce).toHaveBeenLastCalledWith('No elements generated. Canvas cleared.');
+      });
+    });
+
+    describe('announcements', () => {
+      let announce: ReturnType<typeof vi.fn<Announce>>;
+      let store: BuilderStore;
+
+      beforeEach(() => {
+        announce = vi.fn<Announce>();
+        store = createStore(announce);
+      });
+
+      it('announces how many elements were generated', () => {
+        store.getState().loadGeneratedElements(generated);
+
+        expect(announce).toHaveBeenLastCalledWith('6 elements generated.');
+      });
+
+      it('announces a single generated element in the singular', () => {
+        store.getState().loadGeneratedElements([{ type: 'datepicker' }]);
+
+        expect(announce).toHaveBeenLastCalledWith('1 element generated.');
+      });
+
+      it('announces that the canvas was cleared when nothing was generated', () => {
+        store.getState().loadGeneratedElements([]);
+
+        expect(announce).toHaveBeenLastCalledWith('No elements generated. Canvas cleared.');
+      });
+
+      it('announces once', () => {
+        store.getState().setGridSize('rows', 3);
+        announce.mockClear();
+
+        store.getState().loadGeneratedElements(generated);
+
+        expect(announce).toHaveBeenCalledTimes(1);
       });
     });
   });

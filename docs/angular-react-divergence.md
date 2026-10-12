@@ -178,6 +178,7 @@ These were noted while the app was ported. No test in either repository asserts 
 - **Dropping an element that was dragged on the canvas.** In Angular the CDK slides it into its new place, unless reduced motion is requested. In React the copy that followed the pointer disappears at once (`dropAnimation={null}` in `dropped-element.tsx`).
 - **Dragging an element over another cell.** In Angular the CDK shows the faded placeholder where the element would land in that cell. In React the placeholder stays in the element's own cell until the drop, because dnd-kit moves a sortable only among the elements of its own list.
 - **The fact panel.** Added on [2026-10-08](#2026-10-08-a-backend-call-in-react-only): the bottom of the React sidebar holds a panel that shows a fact loaded from a public API. The Angular sidebar has no such panel.
+- **The prompt box.** Added on [2026-10-12](#2026-10-12-a-ui-generated-from-a-description-in-react-only): the React sidebar holds a text field between the palette and the fact panel that replaces the canvas with elements generated from a description. The Angular sidebar has no such field. Unlike the other entries of this list it is covered by a test, `e2e/generate-ui.e2e.ts`, which exists in this repository only.
 
 ## 2026-10-07: theme side effects leave the React store
 
@@ -234,3 +235,23 @@ At the port, the React shell worked out where a drop lands and then called `addE
 - `canvas-drop.ts` and its spec moved from `canvas/` to `state/`, next to their one caller. [`canvas-drop.spec.ts`](../src/app/features/builder/state/canvas-drop.spec.ts) covers what a drag resolves to, and the `dropElement` block of [`builder-store.spec.ts`](../src/app/features/builder/state/builder-store.spec.ts) covers what the drop does to the canvas and what it announces. Angular's `canvas.spec.ts` covers both by calling `Canvas.drop`.
 - `resolveDrop` reads only the identity of what a drag was released over: the row and column of a cell, the `uid` of an element. dnd-kit hands back the data a droppable registered at its last render. The CDK computes its index when the drop happens.
 - Rules 3, 6, 7, 10 and 12 of ADR 0001 mention `dropElement` in this repository only.
+
+## 2026-10-12: a UI generated from a description, in React only
+
+**React.** The sidebar holds a form named "Describe a UI", between the palette and the fact panel. The user describes a UI, the app posts the text to `/api/generate-ui`, and the elements that come back replace what is on the canvas. Behind the form are the same pieces as behind the fact panel, wired in [`main.tsx`](../src/main.tsx):
+
+- a service that posts the text and checks that the answer is a list of well-formed elements: [`ui-generator-service.ts`](../src/app/features/ui-generator/services/ui-generator-service.ts);
+- a fourth store, which holds whether a generation is on its way and why the last one failed: [`ui-generator-store.ts`](../src/app/features/ui-generator/state/ui-generator-store.ts);
+- the form: [`prompt-box.tsx`](../src/app/features/ui-generator/prompt-box/prompt-box.tsx). It calls two stores: `generate` of the generator store resolves with the elements, and the form hands them to `loadGeneratedElements` of the builder store.
+
+**Angular.** The app has no such form, no `/api` backend, and its builder store has no `loadGeneratedElements`.
+
+**Why.** The feature was built in this repository only. Nothing was added to the Angular app.
+
+**What follows.**
+
+- The form is a visible difference. It is listed under [Visible differences the tests do not cover](#visible-differences-the-tests-do-not-cover), although `e2e/generate-ui.e2e.ts` covers it here.
+- `e2e/` holds seven files in this repository and six in the Angular one. The six shared files are unchanged and are still the contract; `generate-ui.e2e.ts` is not part of it and would fail against the Angular app. It answers `/api/generate-ui` itself with `page.route`, so it needs neither the backend nor an API key.
+- The form is built around what the six shared files assert, as the fact panel is. It has no heading, as `app.e2e.ts` lists the headings of the page. Its field and button come after the palette, as `keyboard.e2e.ts` counts the Tab presses from the theme picker to the first palette item. It has no list item, as the drag tests find a palette item by its text among the list items of the sidebar.
+- The generator's HTTP client is its own: a time limit of 60 seconds in place of 10, and no `rejectHttpErrors`, because the service reads the reason for a failure from the body of the failed response.
+- The React builder store has a second action the Angular one lacks, after `dropElement`, and the models folder a fifth file, `generated-element.ts`.

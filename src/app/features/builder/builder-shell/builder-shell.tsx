@@ -14,6 +14,7 @@ import { CSS } from '@dnd-kit/utilities';
 import { JSX, useRef, useState } from 'react';
 import { FactPanel } from '../../fact/fact-panel/fact-panel';
 import { ThemePicker } from '../../theme/theme-picker/theme-picker';
+import { PromptBox } from '../../ui-generator/prompt-box/prompt-box';
 import { Canvas } from '../canvas/canvas';
 import { usePrefersReducedMotion } from '../drag-drop/drag-drop';
 import { ElementPalette } from '../element-palette/element-palette';
@@ -106,6 +107,7 @@ export function BuilderShell(): JSX.Element {
         >
           <LayoutPanel />
           <ElementPalette />
+          <PromptBox />
           <FactPanel className="mt-auto" />
         </aside>
 

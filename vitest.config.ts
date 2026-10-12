@@ -40,6 +40,14 @@ export default defineConfig({
         },
       },
       {
+        test: {
+          name: 'server',
+          environment: 'node',
+          globals: true,
+          include: ['server/**/*.spec.ts'],
+        },
+      },
+      {
         plugins: [react()],
         optimizeDeps: { include: BROWSER_DEPENDENCIES },
         test: {

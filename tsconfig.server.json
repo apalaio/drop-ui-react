@@ -1,0 +1,9 @@
+/* The Express server and its specs, which run in Node. It type-imports the element model from src. */
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.server.tsbuildinfo",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["server"]
+}

@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithStores } from '../../../../test/render-with-stores';
 import { TextCanvasElement } from '../models/canvas-element';
+import { GeneratedElement } from '../models/generated-element';
 import { GridLayout } from '../models/grid-layout';
 import { Canvas } from './canvas';
 
@@ -155,6 +156,129 @@ describe(Canvas.name, () => {
 
       expect(await screen.findByTestId('dropped-div')).toBeInTheDocument();
       expect(screen.queryByText(dropHint)).not.toBeInTheDocument();
+    });
+  });
+
+  describe('with generated elements', () => {
+    const cellName = 'Row 1, column 1';
+    const heading = 'Sign up';
+    const namePlaceholder = 'Your name';
+    const aboutPlaceholder = 'About you';
+    const note = 'All fields are optional';
+    const options = [
+      { text: 'Small', value: 's' },
+      { text: 'Large', value: 'l' },
+    ];
+    const generated: GeneratedElement[] = [
+      { type: 'div', text: heading },
+      { type: 'text-input', text: namePlaceholder },
+      { type: 'dropdown', options },
+      { type: 'datepicker' },
+      { type: 'textfield', text: aboutPlaceholder },
+      { type: 'span', text: note },
+    ];
+
+    function droppedTypes(container: HTMLElement): (string | undefined)[] {
+      return within(container)
+        .queryAllByTestId(/^dropped-/)
+        .map((body) => body.parentElement?.dataset['elementType']);
+    }
+
+    async function load(elements: GeneratedElement[]) {
+      const { builderStore } = mount({ rows: 2, columns: 2 }, [
+        ...inCell(0, 1, [first]),
+        ...inCell(1, 0, [second]),
+      ]);
+
+      builderStore.getState().loadGeneratedElements(elements);
+
+      await waitFor(() => expect(screen.getAllByTestId('canvas-cell').length).toBe(1));
+    }
+
+    describe('of every type', () => {
+      beforeEach(async () => {
+        await load(generated);
+      });
+
+      it('should render them in the single cell in the order given', () => {
+        expect(droppedTypes(screen.getByRole('group', { name: cellName }))).toEqual([
+          'div',
+          'text-input',
+          'dropdown',
+          'datepicker',
+          'textfield',
+          'span',
+        ]);
+      });
+
+      it('should render none of the elements they replaced', () => {
+        const uids = droppedUids(screen.getByRole('group', { name: cellName }));
+
+        expect(uids.length).toBe(1);
+        expect(uids).not.toContain(first.uid);
+        expect(uids).not.toContain(second.uid);
+      });
+
+      it('should not render the drop hint', () => {
+        expect(screen.queryByText(dropHint)).not.toBeInTheDocument();
+      });
+
+      it('should show the text of a block text', () => {
+        expect(screen.getByTestId('dropped-div')).toHaveTextContent(heading);
+      });
+
+      it('should show the text of an inline text', () => {
+        expect(screen.getByTestId('dropped-span')).toHaveTextContent(note);
+      });
+
+      it('should show the text of a text input as its placeholder, with nothing typed', () => {
+        const input = screen.getByRole('textbox', { name: 'Text input' });
+
+        expect(input).toHaveAttribute('placeholder', namePlaceholder);
+        expect(input).toHaveValue('');
+      });
+
+      it('should show the text of a textfield as its placeholder, with nothing typed', () => {
+        const textfield = screen.getByRole('textbox', { name: 'Textfield' });
+
+        expect(textfield).toHaveAttribute('placeholder', aboutPlaceholder);
+        expect(textfield).toHaveValue('');
+      });
+
+      it('should render a datepicker with no date picked', () => {
+        expect(screen.getByLabelText('Datepicker')).toHaveValue('');
+      });
+
+      it('should render a dropdown with its options, the first one selected', () => {
+        const dropdown = screen.getByRole('combobox', { name: 'Dropdown' });
+        const texts = within(dropdown)
+          .getAllByRole('option')
+          .map((option) => option.textContent);
+
+        expect(texts).toEqual(['Small', 'Large']);
+        expect(dropdown).toHaveValue('s');
+      });
+
+      it('should announce how many elements were generated', async () => {
+        expect(await screen.findByText('6 elements generated.')).toHaveAttribute(
+          'aria-live',
+          'polite',
+        );
+      });
+    });
+
+    describe('of which there are none', () => {
+      beforeEach(async () => {
+        await load([]);
+      });
+
+      it('should render no elements', () => {
+        expect(screen.queryAllByTestId(/^dropped-/).length).toBe(0);
+      });
+
+      it('should render the drop hint once', () => {
+        expect(screen.getAllByText(dropHint).length).toBe(1);
+      });
     });
   });
 

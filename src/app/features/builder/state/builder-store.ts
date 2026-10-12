@@ -4,6 +4,7 @@ import { createStore, StoreApi } from 'zustand/vanilla';
 import { Announce } from '../../../shared/announcer/announcer';
 import { DropdownOption } from '../models/dropdown-option';
 import { CanvasElement } from '../models/canvas-element';
+import { GeneratedElement } from '../models/generated-element';
 import {
   cellLabel,
   CellPosition,
@@ -13,7 +14,7 @@ import {
   MAX_GRID_SIZE,
   MIN_GRID_SIZE,
 } from '../models/grid-layout';
-import { ELEMENT_LABELS, PaletteItem } from '../models/palette-item';
+import { ELEMENT_LABELS, ElementType, PaletteItem } from '../models/palette-item';
 import { Dragged, DropTarget, resolveDrop } from './canvas-drop';
 
 export interface BuilderState {
@@ -32,6 +33,8 @@ export interface BuilderActions {
   moveElement(uid: string, cell: CellPosition, index: number): void;
   /** Applies a finished drag and tells whether it was a drop. */
   dropElement(dragged: Dragged | undefined, target: DropTarget | undefined): boolean;
+  /** Replaces the canvas with a single cell holding the given elements, in their order. */
+  loadGeneratedElements(elements: GeneratedElement[]): void;
 }
 
 export type BuilderStore = StoreApi<BuilderState & BuilderActions>;
@@ -47,34 +50,58 @@ const createInitialState = (): BuilderState => ({
     { uid: crypto.randomUUID(), type: 'datepicker', label: ELEMENT_LABELS.datepicker },
     { uid: crypto.randomUUID(), type: 'dropdown', label: ELEMENT_LABELS.dropdown },
   ],
-  grid: { rows: 1, columns: 1 },
+  grid: SINGLE_CELL,
   canvasElements: [],
 });
 
-const createElement = (
-  { uid: paletteUid, type }: PaletteItem,
-  { row, column }: CellPosition,
-): CanvasElement => {
-  const base = { uid: crypto.randomUUID(), paletteUid, row, column };
-  switch (type) {
-    case 'div':
-    case 'span':
-      return { ...base, type, text: DEFAULT_ELEMENT_TEXT };
-    case 'text-input':
-    case 'textfield':
-      return { ...base, type, text: DEFAULT_ELEMENT_TEXT, value: '' };
-    case 'datepicker':
-      return { ...base, type, value: '' };
-    case 'dropdown':
-      return { ...base, type, options: [], value: '' };
-  }
-};
+const SINGLE_CELL: GridLayout = { rows: 1, columns: 1 };
+const ONLY_CELL: CellPosition = { row: 0, column: 0 };
 
 const hasOption = (options: DropdownOption[], value: string): boolean =>
   options.some((option) => option.value === value);
 
 const selectedValue = (options: DropdownOption[], current: string): string =>
   hasOption(options, current) ? current : (options[0]?.value ?? '');
+
+/** What an element dragged in from the palette starts with. */
+const defaultContent = (type: ElementType): GeneratedElement => {
+  switch (type) {
+    case 'div':
+    case 'span':
+    case 'text-input':
+    case 'textfield':
+      return { type, text: DEFAULT_ELEMENT_TEXT };
+    case 'datepicker':
+      return { type };
+    case 'dropdown':
+      return { type, options: [] };
+  }
+};
+
+const createElement = (
+  paletteUid: string,
+  content: GeneratedElement,
+  { row, column }: CellPosition,
+): CanvasElement => {
+  const base = { uid: crypto.randomUUID(), paletteUid, row, column };
+  switch (content.type) {
+    case 'div':
+    case 'span':
+      return { ...base, type: content.type, text: content.text };
+    case 'text-input':
+    case 'textfield':
+      return { ...base, type: content.type, text: content.text, value: '' };
+    case 'datepicker':
+      return { ...base, type: content.type, value: '' };
+    case 'dropdown':
+      return {
+        ...base,
+        type: content.type,
+        options: content.options,
+        value: selectedValue(content.options, ''),
+      };
+  }
+};
 
 const CELL_AXIS: Record<GridAxis, keyof CellPosition> = { rows: 'row', columns: 'column' };
 
@@ -138,7 +165,7 @@ export function createBuilderStore({
       announce(`Grid set to ${countOf(rows, 'row')} and ${countOf(columns, 'column')}.`);
     },
     addElement(item, cell, index) {
-      const element = createElement(item, cell);
+      const element = createElement(item.uid, defaultContent(item.type), cell);
       set(({ canvasElements }) => ({
         canvasElements: insertIntoCell(canvasElements, element, index),
       }));
@@ -223,6 +250,20 @@ export function createBuilderStore({
         moveElement(drop.uid, drop.cell, drop.index);
       }
       return drop !== null;
+    },
+    loadGeneratedElements(elements) {
+      const { paletteItems } = get();
+      // A type the palette does not offer cannot be dragged in either, so none is generated.
+      const canvasElements = elements.flatMap((content) => {
+        const item = paletteItems.find((candidate) => candidate.type === content.type);
+        return item ? [createElement(item.uid, content, ONLY_CELL)] : [];
+      });
+      set({ grid: SINGLE_CELL, canvasElements });
+      announce(
+        canvasElements.length
+          ? `${countOf(canvasElements.length, 'element')} generated.`
+          : 'No elements generated. Canvas cleared.',
+      );
     },
   }));
 }

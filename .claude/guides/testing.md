@@ -178,7 +178,7 @@ describe(Canvas.name, () => {
 | Preset the store, don't stub it           | `renderWithStores(ui, { initial })`. The real store with known state is the "world" the component renders; see [Drive branches](#drive-branches-never-set-state)   |
 | `render` is synchronous                   | `beforeEach(() => { mount(); })`, with a block body. Only make `mount` `async` when it has to wait for a portal, as the dialogs' does                              |
 
-`renderWithStores(ui, options)` creates one builder store, one theme store and one fact store, wraps `ui` in their providers, and returns Testing Library's result plus `builderStore`, `themeStore` and `factStore`.
+`renderWithStores(ui, options)` creates one builder store, one theme store, one fact store and one UI generator store, wraps `ui` in their providers, and returns Testing Library's result plus `builderStore`, `themeStore`, `factStore` and `uiGeneratorStore`.
 
 | Option     | Type                    | Purpose                                                                                                                                             |
 | ---------- | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -188,6 +188,8 @@ describe(Canvas.name, () => {
 | `dnd`      | `boolean`               | Wraps in a `DndContext` with the pointer sensor only, like the shell's. Defaults to `true`; pass `false` for `BuilderShell` and `App`, which bring their own |
 | `factService` | `FactService`        | What the fact store asks for facts. Defaults to `createFactServiceStub()`, which answers at once with `FACT_OF_THE_DAY` and `RANDOM_FACT`, so no component test sends a request. Spread the stub and replace one method to make it wait or fail |
 | `factState` | `Partial<FactState>`   | Preset `fact` and `status`. With a status other than `idle` the panel asks for nothing when it mounts                                              |
+| `uiGeneratorService` | `UiGeneratorService` | What the UI generator store asks for elements. Defaults to `createUiGeneratorServiceStub()`, which answers at once with `GENERATED_ELEMENTS`. Pass an object whose `generate` returns the promise the test needs to make it wait or fail |
+| `uiGeneratorState` | `Partial<UiGeneratorState>` | Preset `status` and `error`                                                                                                             |
 
 After each test the helper removes `data-theme` from `<html>` and the announcer's live regions. Testing Library unmounts the tree by itself, and the `themes.css` link goes with it.
 

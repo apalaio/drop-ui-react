@@ -1,6 +1,7 @@
 import { DndContext, PointerSensor, useSensor, useSensors } from '@dnd-kit/core';
 import { render, RenderResult } from '@testing-library/react';
 import { ReactElement, ReactNode } from 'react';
+import { GeneratedElement } from '../app/features/builder/models/generated-element';
 import {
   BuilderState,
   BuilderStore,
@@ -20,12 +21,32 @@ import {
   ThemeStore,
   ThemeStoreContext,
 } from '../app/features/theme/state/theme-store';
+import { UiGeneratorService } from '../app/features/ui-generator/services/ui-generator-service';
+import {
+  createUiGeneratorStore,
+  UiGeneratorState,
+  UiGeneratorStore,
+  UiGeneratorStoreContext,
+} from '../app/features/ui-generator/state/ui-generator-store';
 import { Announce, createAnnouncer } from '../app/shared/announcer/announcer';
 
 export const STARTING_THEME = 'fantasy';
 
 export const FACT_OF_THE_DAY: Fact = { id: 'fact-today', text: 'Honey never spoils.' };
 export const RANDOM_FACT: Fact = { id: 'fact-random', text: 'Bananas are berries.' };
+
+export const GENERATED_ELEMENTS: GeneratedElement[] = [
+  { type: 'div', text: 'Sign up' },
+  { type: 'text-input', text: 'Your name' },
+  { type: 'datepicker' },
+  {
+    type: 'dropdown',
+    options: [
+      { text: 'Greece', value: 'gr' },
+      { text: 'Norway', value: 'no' },
+    ],
+  },
+];
 
 export interface RenderWithStoresOptions {
   initial?: Partial<BuilderState>;
@@ -34,12 +55,15 @@ export interface RenderWithStoresOptions {
   dnd?: boolean;
   factService?: FactService;
   factState?: Partial<FactState>;
+  uiGeneratorService?: UiGeneratorService;
+  uiGeneratorState?: Partial<UiGeneratorState>;
 }
 
 export type RenderWithStoresResult = RenderResult & {
   builderStore: BuilderStore;
   themeStore: ThemeStore;
   factStore: FactStore;
+  uiGeneratorStore: UiGeneratorStore;
 };
 
 function DragContext({ children }: { children: ReactNode }) {
@@ -54,6 +78,10 @@ export function createFactServiceStub(): FactService {
   };
 }
 
+export function createUiGeneratorServiceStub(): UiGeneratorService {
+  return { generate: () => Promise.resolve(GENERATED_ELEMENTS) };
+}
+
 export function renderWithStores(
   ui: ReactElement,
   {
@@ -63,18 +91,27 @@ export function renderWithStores(
     dnd = true,
     factService = createFactServiceStub(),
     factState,
+    uiGeneratorService = createUiGeneratorServiceStub(),
+    uiGeneratorState,
   }: RenderWithStoresOptions = {},
 ): RenderWithStoresResult {
   const builderStore = createBuilderStore({ announce, initial });
   const themeStore = createThemeStore({ announce, declaredTheme: theme });
   const factStore = createFactStore({ announce, service: factService, initial: factState });
+  const uiGeneratorStore = createUiGeneratorStore({
+    announce,
+    service: uiGeneratorService,
+    initial: uiGeneratorState,
+  });
 
   function Providers({ children }: { children: ReactNode }) {
     return (
       <ThemeStoreContext value={themeStore}>
         <BuilderStoreContext value={builderStore}>
           <FactStoreContext value={factStore}>
-            {dnd ? <DragContext>{children}</DragContext> : children}
+            <UiGeneratorStoreContext value={uiGeneratorStore}>
+              {dnd ? <DragContext>{children}</DragContext> : children}
+            </UiGeneratorStoreContext>
           </FactStoreContext>
         </BuilderStoreContext>
       </ThemeStoreContext>
@@ -85,6 +122,7 @@ export function renderWithStores(
     builderStore,
     themeStore,
     factStore,
+    uiGeneratorStore,
   });
 }
 

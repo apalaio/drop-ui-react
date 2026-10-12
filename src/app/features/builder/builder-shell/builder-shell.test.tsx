@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
-import { renderWithStores } from '../../../../test/render-with-stores';
+import { GENERATED_ELEMENTS, renderWithStores } from '../../../../test/render-with-stores';
 import { BuilderShell } from './builder-shell';
 
 describe(BuilderShell.name, () => {
@@ -56,6 +56,38 @@ describe(BuilderShell.name, () => {
 
     expect(palette.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it('should place the prompt box between the palette and the fact panel in the sidebar', () => {
+    const sidebar = screen.getByRole('complementary', { name: 'Sidebar' });
+    const palette = within(sidebar).getByRole('list', { name: 'Elements' });
+    const promptBox = within(sidebar).getByRole('form', { name: 'Describe a UI' });
+    const panel = within(sidebar).getByRole('region', { name: 'Did you know?' });
+
+    expect(palette.compareDocumentPosition(promptBox) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+    expect(promptBox.compareDocumentPosition(panel) & Node.DOCUMENT_POSITION_FOLLOWING).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it('should show the elements generated from a description on the canvas', async () => {
+    const sidebar = screen.getByRole('complementary', { name: 'Sidebar' });
+    fireEvent.input(within(sidebar).getByRole('textbox', { name: 'Describe a UI' }), {
+      target: { value: 'a signup form' },
+    });
+
+    fireEvent.click(within(sidebar).getByRole('button', { name: 'Generate' }));
+
+    const types = GENERATED_ELEMENTS.map(({ type }) => type);
+    await waitFor(() =>
+      expect(
+        within(screen.getByRole('main'))
+          .getAllByTestId(/^dropped-/)
+          .map((element) => element.getAttribute('data-testid')),
+      ).toEqual(types.map((type) => `dropped-${type}`)),
     );
   });
 
