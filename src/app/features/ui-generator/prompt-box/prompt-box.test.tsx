@@ -11,6 +11,7 @@ describe(PromptBox.name, () => {
   const generate = 'Generate';
   const generating = 'Generating…';
   const failed = 'Could not generate a UI.';
+  const nothing = 'That description did not produce any elements.';
   const reason = 'Describe the UI in at most 2000 characters.';
   const prompt = 'a signup form with name, birthday and country';
   const existing: TextCanvasElement = {
@@ -62,6 +63,10 @@ describe(PromptBox.name, () => {
 
     it('should not be busy', () => {
       expect(screen.getByRole('form', { name: label })).toHaveAttribute('aria-busy', 'false');
+    });
+
+    it('should limit the description to the length the backend accepts', () => {
+      expect(field()).toHaveAttribute('maxlength', '4000');
     });
   });
 
@@ -237,6 +242,42 @@ describe(PromptBox.name, () => {
 
     it('should not be busy', () => {
       expect(screen.getByRole('form', { name: label })).toHaveAttribute('aria-busy', 'false');
+    });
+  });
+
+  describe('when nothing was generated', () => {
+    let stores: ReturnType<typeof renderWithStores>;
+
+    beforeEach(async () => {
+      stores = renderWithStores(<PromptBox />, {
+        initial: { grid: { rows: 2, columns: 2 }, canvasElements: [existing] },
+        uiGeneratorService: { generate: () => Promise.resolve([]) },
+      });
+      submit();
+      await screen.findByText(nothing, { selector: 'p' });
+    });
+
+    it('should say so', () => {
+      expect(screen.getByText(nothing, { selector: 'p' })).toBeInTheDocument();
+    });
+
+    it('should announce it', async () => {
+      expect(await screen.findByText(nothing, { selector: '[aria-live]' })).toHaveAttribute(
+        'aria-live',
+        'polite',
+      );
+    });
+
+    it('should leave the canvas as it was', () => {
+      expect(stores.builderStore.getState().canvasElements).toEqual([existing]);
+    });
+
+    it('should leave the grid as it was', () => {
+      expect(stores.builderStore.getState().grid).toEqual({ rows: 2, columns: 2 });
+    });
+
+    it('should offer to generate again', () => {
+      expect(button(generate)).toBeEnabled();
     });
   });
 

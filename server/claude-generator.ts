@@ -1,6 +1,9 @@
 import type Anthropic from '@anthropic-ai/sdk';
-import type { GeneratedElement } from '../src/app/features/builder/models/generated-element';
-import { GENERATED_UI_SCHEMA, toGeneratedElements } from './generated-ui';
+import {
+  GeneratedElement,
+  toGeneratedElements,
+} from '../src/app/features/builder/models/generated-element';
+import { GENERATED_UI_SCHEMA } from './generated-ui';
 
 export type GenerateUi = (text: string) => Promise<GeneratedElement[]>;
 

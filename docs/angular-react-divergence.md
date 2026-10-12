@@ -238,9 +238,9 @@ At the port, the React shell worked out where a drop lands and then called `addE
 
 ## 2026-10-12: a UI generated from a description, in React only
 
-**React.** The sidebar holds a form named "Describe a UI", between the palette and the fact panel. The user describes a UI, the app posts the text to `/api/generate-ui`, and the elements that come back replace what is on the canvas. Behind the form are the same pieces as behind the fact panel, wired in [`main.tsx`](../src/main.tsx):
+**React.** The sidebar holds a form named "Describe a UI", between the palette and the fact panel. The user describes a UI, the app posts the text to `/api/generate-ui`, and the elements that come back replace what is on the canvas. An answer without elements leaves the canvas as it is, and the form says that nothing was generated. Behind the form are the same pieces as behind the fact panel, wired in [`main.tsx`](../src/main.tsx):
 
-- a service that posts the text and checks that the answer is a list of well-formed elements: [`ui-generator-service.ts`](../src/app/features/ui-generator/services/ui-generator-service.ts);
+- a service that posts the text and checks that the answer is a list of well-formed elements: [`ui-generator-service.ts`](../src/app/features/ui-generator/services/ui-generator-service.ts). The check is `toGeneratedElements` in [`generated-element.ts`](../src/app/features/builder/models/generated-element.ts), which the backend runs on Claude's answer as well;
 - a fourth store, which holds whether a generation is on its way and why the last one failed: [`ui-generator-store.ts`](../src/app/features/ui-generator/state/ui-generator-store.ts);
 - the form: [`prompt-box.tsx`](../src/app/features/ui-generator/prompt-box/prompt-box.tsx). It calls two stores: `generate` of the generator store resolves with the elements, and the form hands them to `loadGeneratedElements` of the builder store.
 
@@ -254,4 +254,4 @@ At the port, the React shell worked out where a drop lands and then called `addE
 - `e2e/` holds seven files in this repository and six in the Angular one. The six shared files are unchanged and are still the contract; `generate-ui.e2e.ts` is not part of it and would fail against the Angular app. It answers `/api/generate-ui` itself with `page.route`, so it needs neither the backend nor an API key.
 - The form is built around what the six shared files assert, as the fact panel is. It has no heading, as `app.e2e.ts` lists the headings of the page. Its field and button come after the palette, as `keyboard.e2e.ts` counts the Tab presses from the theme picker to the first palette item. It has no list item, as the drag tests find a palette item by its text among the list items of the sidebar.
 - The generator's HTTP client is its own: a time limit of 60 seconds in place of 10, and no `rejectHttpErrors`, because the service reads the reason for a failure from the body of the failed response.
-- The React builder store has a second action the Angular one lacks, after `dropElement`, and the models folder a fifth file, `generated-element.ts`.
+- The React builder store has a second action the Angular one lacks, after `dropElement`, and the models folder a fifth file, `generated-element.ts`. The `ui-generator` feature has a models folder of its own, whose `generation-request.ts` holds the longest description the form and the backend accept.

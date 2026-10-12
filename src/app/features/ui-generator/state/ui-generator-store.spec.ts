@@ -4,6 +4,7 @@ import { UiGeneratorError, UiGeneratorService } from '../services/ui-generator-s
 import {
   createUiGeneratorStore,
   GENERATE_FAILED,
+  NOTHING_GENERATED,
   UiGeneratorState,
   UiGeneratorStore,
 } from './ui-generator-store';
@@ -193,6 +194,36 @@ describe('UiGeneratorStore', () => {
 
         expect(announce).toHaveBeenCalledTimes(1);
         expect(announce).toHaveBeenCalledWith(reason);
+      });
+    });
+
+    describe('when the answer has no elements', () => {
+      beforeEach(() => {
+        service.generate.mockResolvedValue([]);
+      });
+
+      it('resolves with nothing', async () => {
+        const store = createStore();
+
+        expect(await store.getState().generate(text)).toBeNull();
+      });
+
+      it('holds that nothing was generated as its error', async () => {
+        const store = createStore();
+
+        await store.getState().generate(text);
+
+        expect(store.getState().status).toBe('error');
+        expect(store.getState().error).toBe(NOTHING_GENERATED);
+      });
+
+      it('announces that nothing was generated', async () => {
+        const store = createStore();
+
+        await store.getState().generate(text);
+
+        expect(announce).toHaveBeenCalledTimes(1);
+        expect(announce).toHaveBeenCalledWith(NOTHING_GENERATED);
       });
     });
 

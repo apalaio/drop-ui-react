@@ -1161,15 +1161,16 @@ describe('BuilderStore', () => {
       expect(uidsIn(store, 0, 0).length).toBe(generated.length);
     });
 
-    it('clears the canvas and resets the grid for an empty list', () => {
+    it('leaves the canvas and the grid as they were for an empty list', () => {
       const store = createStore();
       store.getState().setGridSize('columns', 2);
       addTo(store, 0, 1);
+      const before = store.getState().canvasElements;
 
       store.getState().loadGeneratedElements([]);
 
-      expect(store.getState().grid).toEqual({ rows: 1, columns: 1 });
-      expect(store.getState().canvasElements).toEqual([]);
+      expect(store.getState().grid).toEqual({ rows: 1, columns: 2 });
+      expect(store.getState().canvasElements).toBe(before);
     });
 
     it('leaves the palette as it was', () => {
@@ -1237,15 +1238,17 @@ describe('BuilderStore', () => {
         expect(announce).toHaveBeenLastCalledWith('2 elements generated.');
       });
 
-      it('still clears the canvas when it offers none of the generated types', () => {
+      it('leaves the canvas as it was when it offers none of the generated types', () => {
         const announce = vi.fn<Announce>();
         const store = createBuilderStore({ announce, initial: { paletteItems } });
         store.getState().addElement(paletteItems[0], origin, 0);
+        const before = store.getState().canvasElements;
+        announce.mockClear();
 
         store.getState().loadGeneratedElements([{ type: 'datepicker' }]);
 
-        expect(store.getState().canvasElements).toEqual([]);
-        expect(announce).toHaveBeenLastCalledWith('No elements generated. Canvas cleared.');
+        expect(store.getState().canvasElements).toBe(before);
+        expect(announce).not.toHaveBeenCalled();
       });
     });
 
@@ -1270,10 +1273,10 @@ describe('BuilderStore', () => {
         expect(announce).toHaveBeenLastCalledWith('1 element generated.');
       });
 
-      it('announces that the canvas was cleared when nothing was generated', () => {
+      it('announces nothing when nothing was generated', () => {
         store.getState().loadGeneratedElements([]);
 
-        expect(announce).toHaveBeenLastCalledWith('No elements generated. Canvas cleared.');
+        expect(announce).not.toHaveBeenCalled();
       });
 
       it('announces once', () => {

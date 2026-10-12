@@ -36,7 +36,7 @@ daisyUI's prebuilt theme stylesheets are not bundled: the build copies them to `
 
 ## Backend
 
-An Express server in `server/`, started by `npm run dev` next to the Vite dev server (`npm run dev:web` and `npm run dev:server` start one of the two). `POST /api/generate-ui` takes `{ "text": "a signup form with name, birthday and country" }` and answers `{ "elements": [...] }`: the canvas elements Claude made of the description, each checked on the server before it is sent. The Vite dev server proxies `/api` to the backend, so the app calls it by its relative address.
+An Express server in `server/`, started by `npm run dev` next to the Vite dev server (`npm run dev:web` and `npm run dev:server` start one of the two). `POST /api/generate-ui` takes `{ "text": "a signup form with name, birthday and country" }` and answers `{ "elements": [...] }`: the canvas elements Claude made of the description, each checked on the server before it is sent. The Vite dev server proxies `/api` to the backend, so the app calls it by its relative address. The backend listens on `127.0.0.1` only: the proxy is its one caller, and nothing else on the network can spend the API key.
 
 The backend needs an Anthropic API key. Copy `.env.example` to `.env`, which git ignores, and fill it in:
 
@@ -46,7 +46,7 @@ The backend needs an Anthropic API key. Copy `.env.example` to `.env`, which git
 | `ANTHROPIC_MODEL`   | `claude-opus-5-5` | The model that turns a description into elements       |
 | `API_PORT`          | `3001`            | The port of the backend, and where Vite proxies `/api` |
 
-Without a key the backend still starts, and answers `503` to every generation. It answers `400` to a missing, blank or too long description and `502` when the call to Claude fails or its answer is not a list of known elements. Every error is `{ "error": "..." }`.
+Without a key the backend still starts, and answers `503` to every generation. It answers `400` to a missing or blank description, to one longer than 4000 characters and to a body that is not JSON, `413` to a body larger than it reads, `502` when the call to Claude fails or its answer is not a list of known elements, and `500` to any failure of its own. A call to Claude is given 50 seconds and is not retried, so the backend answers before the browser stops waiting at 60. Every error is `{ "error": "..." }`.
 
 ## Decisions
 

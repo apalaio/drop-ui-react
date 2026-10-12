@@ -1,5 +1,6 @@
 import { SubmitEvent, useId, useState } from 'react';
 import { useBuilderStore } from '../../builder/state/builder-store';
+import { MAX_TEXT_LENGTH } from '../models/generation-request';
 import { useUiGeneratorStore } from '../state/ui-generator-store';
 
 const LABEL = 'Describe a UI';
@@ -41,6 +42,7 @@ export function PromptBox({ className = '' }: { className?: string }) {
         className="textarea mb-2 w-full textarea-sm"
         rows={2}
         placeholder="A signup form with name, birthday and country"
+        maxLength={MAX_TEXT_LENGTH}
         value={text}
         onChange={({ target }) => setText(target.value)}
       />

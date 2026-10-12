@@ -1,7 +1,6 @@
 import { HttpHandler } from '../../../shared/http/http-client';
 import { HttpError } from '../../../shared/http/http-interceptors';
-import { DropdownOption } from '../../builder/models/dropdown-option';
-import { GeneratedElement } from '../../builder/models/generated-element';
+import { GeneratedElement, toGeneratedElements } from '../../builder/models/generated-element';
 
 export interface UiGeneratorService {
   generate(text: string): Promise<GeneratedElement[]>;
@@ -17,53 +16,10 @@ export class UiGeneratorError extends Error {
   }
 }
 
-const NOT_ELEMENTS = 'The generation API answered with something that is not a list of elements.';
-
 const field = (value: unknown, name: string): unknown =>
   typeof value === 'object' && value !== null
     ? (value as Record<string, unknown>)[name]
     : undefined;
-
-const toOption = (option: unknown): DropdownOption => {
-  const text = field(option, 'text');
-  const value = field(option, 'value');
-  if (typeof text === 'string' && typeof value === 'string') {
-    return { text, value };
-  }
-  throw new Error(NOT_ELEMENTS);
-};
-
-const toElement = (element: unknown): GeneratedElement => {
-  const type = field(element, 'type');
-  const text = field(element, 'text');
-  const options = field(element, 'options');
-  switch (type) {
-    case 'div':
-    case 'span':
-    case 'text-input':
-    case 'textfield':
-      if (typeof text === 'string') {
-        return { type, text };
-      }
-      break;
-    case 'datepicker':
-      return { type };
-    case 'dropdown':
-      if (Array.isArray(options)) {
-        return { type, options: options.map(toOption) };
-      }
-      break;
-  }
-  throw new Error(NOT_ELEMENTS);
-};
-
-const toElements = (body: unknown): GeneratedElement[] => {
-  const elements = field(body, 'elements');
-  if (Array.isArray(elements)) {
-    return elements.map(toElement);
-  }
-  throw new Error(NOT_ELEMENTS);
-};
 
 async function toFailure(response: Response): Promise<Error> {
   try {
@@ -92,9 +48,7 @@ export function createUiGeneratorService(http: HttpHandler): UiGeneratorService 
       if (!response.ok) {
         throw await toFailure(response);
       }
-      const body: unknown = await response.json();
-      console.log(body);
-      return toElements(body);
+      return toGeneratedElements(await response.json());
     },
   };
 }

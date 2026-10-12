@@ -20,6 +20,7 @@ export interface UiGeneratorActions {
 export type UiGeneratorStore = StoreApi<UiGeneratorState & UiGeneratorActions>;
 
 export const GENERATE_FAILED = 'Could not generate a UI.';
+export const NOTHING_GENERATED = 'That description did not produce any elements.';
 
 export function createUiGeneratorStore({
   announce,
@@ -40,15 +41,21 @@ export function createUiGeneratorStore({
         return null;
       }
       set({ status: 'generating', error: null });
-      try {
-        const elements = await service.generate(description);
-        set({ status: 'idle' });
-        return elements;
-      } catch (failure) {
-        const error = failure instanceof UiGeneratorError ? failure.message : GENERATE_FAILED;
+      const fail = (error: string): null => {
         set({ status: 'error', error });
         announce(error);
         return null;
+      };
+      try {
+        const elements = await service.generate(description);
+        // An empty answer is reported, not returned: loading it would only empty the canvas.
+        if (elements.length === 0) {
+          return fail(NOTHING_GENERATED);
+        }
+        set({ status: 'idle' });
+        return elements;
+      } catch (failure) {
+        return fail(failure instanceof UiGeneratorError ? failure.message : GENERATE_FAILED);
       }
     },
   }));

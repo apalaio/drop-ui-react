@@ -56,19 +56,6 @@ test('renders the elements generated from a description on the canvas', async ({
   expect(sent).toEqual([{ method: 'POST', body: { text: description } }]);
 });
 
-test('logs the generated JSON to the console', async ({ page }) => {
-  await page.route(GENERATE_UI_API, (route) => route.fulfill({ json: generated }));
-  await page.goto('/');
-  const logged = page.waitForEvent(
-    'console',
-    (message) => message.type() === 'log' && message.text().includes('elements'),
-  );
-
-  await describeUi(page, description);
-
-  expect(await (await logged).args()[0].jsonValue()).toEqual(generated);
-});
-
 test('replaces what is on the canvas with the generated elements, in a single cell', async ({ page }) => {
   await page.route(GENERATE_UI_API, (route) => route.fulfill({ json: generated }));
   await page.goto('/');
@@ -127,4 +114,27 @@ test('shows the reason the backend gives and leaves the canvas alone when genera
   await expect(sidebar.getByRole('form', { name: 'Describe a UI' }).getByText(reason)).toBeVisible();
   expect(await elementTypes(canvas)).toEqual(['datepicker']);
   await expect(sidebar.getByRole('button', { name: 'Generate', exact: true })).toBeEnabled();
+});
+
+test('leaves the canvas alone and says so when nothing was generated', async ({ page }) => {
+  await page.route(GENERATE_UI_API, (route) => route.fulfill({ json: { elements: [] } }));
+  await page.goto('/');
+  const sidebar = page.getByRole('complementary', { name: 'Sidebar' });
+  const canvas = page.getByRole('region', { name: 'Canvas' });
+  const columns = sidebar.getByRole('spinbutton', { name: 'Grid columns' });
+  await columns.fill('2');
+  await columns.blur();
+  await sidebar.getByRole('button', { name: 'Add Textfield' }).click();
+  await page.getByRole('menuitem', { name: 'Row 1, column 2' }).click();
+  await expect(canvas.getByTestId('dropped-textfield')).toHaveCount(1);
+
+  await describeUi(page, 'hello');
+
+  await expect(
+    sidebar
+      .getByRole('form', { name: 'Describe a UI' })
+      .getByText('That description did not produce any elements.'),
+  ).toBeVisible();
+  expect(await elementTypes(canvas)).toEqual(['textfield']);
+  await expect(canvas.getByTestId('canvas-cell')).toHaveCount(2);
 });

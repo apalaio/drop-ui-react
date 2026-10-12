@@ -21,7 +21,6 @@ describe('createUiGeneratorService', () => {
   const body = { elements };
 
   let http: ReturnType<typeof vi.fn<HttpHandler>>;
-  let log: ReturnType<typeof vi.spyOn>;
   let service: UiGeneratorService;
 
   function respondWith(value: unknown, status = 200): void {
@@ -30,13 +29,8 @@ describe('createUiGeneratorService', () => {
 
   beforeEach(() => {
     http = vi.fn<HttpHandler>();
-    log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
     service = createUiGeneratorService(http);
     respondWith(body);
-  });
-
-  afterEach(() => {
-    log.mockRestore();
   });
 
   it('sends the request to the generation address', async () => {
@@ -102,53 +96,20 @@ describe('createUiGeneratorService', () => {
     ]);
   });
 
-  it('logs the answer', async () => {
-    await service.generate(text);
-
-    expect(log).toHaveBeenCalledTimes(1);
-    expect(log).toHaveBeenCalledWith(body);
-  });
-
-  it('logs nothing when the request fails', async () => {
-    http.mockRejectedValue(new Error('offline'));
-
-    await service.generate(text).catch(() => undefined);
-
-    expect(log).not.toHaveBeenCalled();
-  });
-
   it.each([
     ['no elements', {}],
-    ['elements that are not a list', { elements: 'none' }],
     ['a list in place of an object', elements],
-    ['nothing', null],
-    ['an element that is not an object', { elements: ['div'] }],
-    ['an element that is nothing', { elements: [null] }],
-    ['an element without a type', { elements: [{ text: 'Sign up' }] }],
-    ['an element of an unknown type', { elements: [{ type: 'button', text: 'Send' }] }],
-    ['a block text without a text', { elements: [{ type: 'div' }] }],
-    ['an inline text whose text is not a string', { elements: [{ type: 'span', text: 42 }] }],
-    ['a text input without a text', { elements: [{ type: 'text-input' }] }],
-    ['a textfield without a text', { elements: [{ type: 'textfield' }] }],
-    ['a dropdown without options', { elements: [{ type: 'dropdown' }] }],
-    ['a dropdown whose options are not a list', { elements: [{ type: 'dropdown', options: {} }] }],
-    [
-      'a dropdown option without a value',
-      { elements: [{ type: 'dropdown', options: [{ text: 'Greece' }] }] },
-    ],
-    [
-      'a dropdown option whose text is not a string',
-      { elements: [{ type: 'dropdown', options: [{ text: 1, value: 'gr' }] }] },
-    ],
-    [
-      'a dropdown option that is not an object',
-      { elements: [{ type: 'dropdown', options: ['Greece'] }] },
-    ],
     ['one malformed element among well-formed ones', { elements: [...elements, { type: 'div' }] }],
   ])('rejects an answer with %s', async (_, answer) => {
     respondWith(answer);
 
-    await expect(service.generate(text)).rejects.toThrow('not a list of elements');
+    await expect(service.generate(text)).rejects.toBeInstanceOf(Error);
+  });
+
+  it('does not mark a malformed answer as a failure the backend explained', async () => {
+    respondWith({});
+
+    await expect(service.generate(text)).rejects.not.toBeInstanceOf(UiGeneratorError);
   });
 
   it('rejects an answer that is not JSON', async () => {
@@ -200,14 +161,6 @@ describe('createUiGeneratorService', () => {
       http.mockResolvedValue(new Response('Bad Gateway', { status }));
 
       await expect(service.generate(text)).rejects.toBeInstanceOf(HttpError);
-    });
-
-    it('logs nothing', async () => {
-      respondWith({ error: reason }, status);
-
-      await service.generate(text).catch(() => undefined);
-
-      expect(log).not.toHaveBeenCalled();
     });
   });
 });

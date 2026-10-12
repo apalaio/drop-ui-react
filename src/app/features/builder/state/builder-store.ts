@@ -33,7 +33,10 @@ export interface BuilderActions {
   moveElement(uid: string, cell: CellPosition, index: number): void;
   /** Applies a finished drag and tells whether it was a drop. */
   dropElement(dragged: Dragged | undefined, target: DropTarget | undefined): boolean;
-  /** Replaces the canvas with a single cell holding the given elements, in their order. */
+  /**
+   * Replaces the canvas with a single cell holding the given elements, in their order. With no
+   * element to hold, the canvas stays as it is.
+   */
   loadGeneratedElements(elements: GeneratedElement[]): void;
 }
 
@@ -258,12 +261,11 @@ export function createBuilderStore({
         const item = paletteItems.find((candidate) => candidate.type === content.type);
         return item ? [createElement(item.uid, content, ONLY_CELL)] : [];
       });
+      if (canvasElements.length === 0) {
+        return;
+      }
       set({ grid: SINGLE_CELL, canvasElements });
-      announce(
-        canvasElements.length
-          ? `${countOf(canvasElements.length, 'element')} generated.`
-          : 'No elements generated. Canvas cleared.',
-      );
+      announce(`${countOf(canvasElements.length, 'element')} generated.`);
     },
   }));
 }

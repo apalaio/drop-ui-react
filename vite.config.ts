@@ -23,7 +23,8 @@ export default defineConfig(({ mode }) => {
       }),
     ],
     server: {
-      proxy: { '/api': `http://localhost:${apiPort}` },
+      // By address: the backend listens on IPv4 loopback only, and `localhost` may resolve to ::1.
+      proxy: { '/api': `http://127.0.0.1:${apiPort}` },
     },
   };
 });

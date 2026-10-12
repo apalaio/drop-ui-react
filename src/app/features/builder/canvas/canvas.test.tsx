@@ -268,16 +268,21 @@ describe(Canvas.name, () => {
     });
 
     describe('of which there are none', () => {
-      beforeEach(async () => {
-        await load([]);
+      beforeEach(() => {
+        const { builderStore } = mount({ rows: 2, columns: 2 }, [
+          ...inCell(0, 1, [first]),
+          ...inCell(1, 0, [second]),
+        ]);
+
+        builderStore.getState().loadGeneratedElements([]);
       });
 
-      it('should render no elements', () => {
-        expect(screen.queryAllByTestId(/^dropped-/).length).toBe(0);
+      it('should keep every cell', () => {
+        expect(screen.getAllByTestId('canvas-cell').length).toBe(4);
       });
 
-      it('should render the drop hint once', () => {
-        expect(screen.getAllByText(dropHint).length).toBe(1);
+      it('should keep the elements that were on the canvas', () => {
+        expect(screen.queryAllByTestId(/^dropped-/).length).toBe(2);
       });
     });
   });

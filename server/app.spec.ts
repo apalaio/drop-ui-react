@@ -1,6 +1,7 @@
 import { Server } from 'node:http';
 import { AddressInfo } from 'node:net';
-import { createApp, MAX_TEXT_LENGTH } from './app';
+import { MAX_TEXT_LENGTH } from '../src/app/features/ui-generator/models/generation-request';
+import { createApp } from './app';
 import { createClaudeGenerator, DEFAULT_MODEL, GenerateUi } from './claude-generator';
 
 describe('POST /api/generate-ui', () => {
@@ -69,6 +70,14 @@ describe('POST /api/generate-ui', () => {
       expect(response.status).toBe(200);
     });
 
+    it('accepts a description of the longest length with blanks around it', async () => {
+      const response = await post({ text: `  ${'a'.repeat(MAX_TEXT_LENGTH)}
+
+` });
+
+      expect(response.status).toBe(200);
+    });
+
     it('answers 200 with an empty list when nothing was generated', async () => {
       generate.mockResolvedValue([]);
 
@@ -105,6 +114,15 @@ describe('POST /api/generate-ui', () => {
       ]);
     });
 
+    it('answers 413 to a body larger than the server reads', async () => {
+      const response = await post({ text: 'a'.repeat(200_000) });
+
+      expect([response.status, await response.json()]).toEqual([
+        413,
+        { error: `The description is longer than ${MAX_TEXT_LENGTH} characters.` },
+      ]);
+    });
+
     it('answers 400 to a body that is not JSON', async () => {
       const response = await send('{ text: ');
 
@@ -126,6 +144,40 @@ describe('POST /api/generate-ui', () => {
       await send('{ text: ');
 
       expect(generate).not.toHaveBeenCalled();
+    });
+
+    it('does not log it as a failure', async () => {
+      await post({ text: '   ' });
+      await send('{ text: ');
+      await post({ text: 'a'.repeat(200_000) });
+
+      expect(logError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('when the server itself fails', () => {
+    const failure = new Error('disk full');
+
+    beforeEach(() => {
+      logError.mockImplementationOnce(() => {
+        throw failure;
+      });
+      generate.mockRejectedValue(new Error('overloaded'));
+    });
+
+    it('answers 500 without the cause', async () => {
+      const response = await post({ text: 'a country picker' });
+
+      expect([response.status, await response.json()]).toEqual([
+        500,
+        { error: 'The server failed to answer.' },
+      ]);
+    });
+
+    it('reports the cause to the log', async () => {
+      await post({ text: 'a country picker' });
+
+      expect(logError).toHaveBeenLastCalledWith(failure);
     });
   });
 
