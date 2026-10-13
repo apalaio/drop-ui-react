@@ -4,7 +4,6 @@ import { GenerateUi, MissingApiKeyError } from './claude-generator';
 
 export interface AppOptions {
   generate: GenerateUi;
-  /** Where a failed generation is reported. The answer to the browser never carries the cause. */
   logError?: (error: unknown) => void;
 }
 

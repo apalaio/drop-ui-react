@@ -13,7 +13,6 @@ export interface UiGeneratorState {
 }
 
 export interface UiGeneratorActions {
-  /** Resolves with the generated elements, or with null when there are none to show. */
   generate(text: string): Promise<GeneratedElement[] | null>;
 }
 

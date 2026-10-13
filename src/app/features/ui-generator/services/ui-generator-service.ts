@@ -8,7 +8,6 @@ export interface UiGeneratorService {
 
 export const GENERATE_UI_API = '/api/generate-ui';
 
-/** A refusal the backend explained: its message is written for the user. */
 export class UiGeneratorError extends Error {
   constructor(message: string) {
     super(message);
@@ -27,9 +26,7 @@ async function toFailure(response: Response): Promise<Error> {
     if (typeof error === 'string' && error.trim() !== '') {
       return new UiGeneratorError(error);
     }
-  } catch {
-    // A failure without a JSON body, such as the dev proxy's when the backend is down.
-  }
+  } catch {}
   return new HttpError(response.status, GENERATE_UI_API);
 }
 
